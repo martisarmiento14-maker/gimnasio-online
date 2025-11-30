@@ -1,22 +1,15 @@
 import pkg from 'pg';
 const { Pool } = pkg;
-import dotenv from "dotenv";
-dotenv.config();
 
 const pool = new Pool({
     host: process.env.PGHOST,
+    port: process.env.PGPORT,
     user: process.env.PGUSER,
     password: process.env.PGPASSWORD,
     database: process.env.PGDATABASE,
-    port: process.env.PGPORT,
     ssl: {
-        rejectUnauthorized: false,
+        rejectUnauthorized: false
     }
 });
 
-pool.connect()
-    .then(() => console.log("✅ Conectado a Render PostgreSQL"))
-    .catch(err => console.error("❌ Error de conexión:", err));
-
 export default pool;
-
