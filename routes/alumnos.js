@@ -1,62 +1,48 @@
 import express from "express";
-import db from "../database/db.js";
+import pool from "../database/db.js";
 
 const router = express.Router();
 
 // Obtener todos los alumnos
-router.get("/", (req, res) => {
-  const sql = "SELECT * FROM alumnos ORDER BY id_alumno DESC";
+router.get("/", async (req, res) => {
+    try {
+        const sql = "SELECT * FROM alumnos ORDER BY id DESC";
+        const result = await pool.query(sql);
 
-    db.query(sql, (err, results) => {
-        if (err) {
-            console.error("Error SQL:", err);
-            return res.status(500).json({ error: "Error al obtener alumnos" });
-        }
-    res.json(results);
-    });
+        return res.json(result.rows);
+    } catch (err) {
+        console.error("❌ ERROR SQL:", err);
+        return res.status(500).json({ error: "Error al obtener alumnos" });
+    }
 });
 
 // Crear nuevo alumno
-router.post("/", (req, res) => {
-    const datos = req.body;
+router.post("/", async (req, res) => {
+    try {
+        const { nombre, apellido, edad, email, telefono } = req.body;
 
-    const sql = "INSERT INTO alumnos SET ?";
-    db.query(sql, datos, (err, result) => {
-        if (err) {
-            console.error("Error SQL:", err);
-            return res.status(500).json({ error: "Error al crear alumno" });
-        }
-    res.json({ message: "Alumno creado", id: result.insertId });
-    });
-});
+        const sql = `
+            INSERT INTO alumnos (nombre, apellido, edad, email, telefono)
+            VALUES ($1, $2, $3, $4, $5)
+            RETURNING *
+        `;
 
-// Editar alumno
-router.put("/:id", (req, res) => {
-    const { id } = req.params;
-    const datos = req.body;
+        const result = await pool.query(sql, [
+            nombre,
+            apellido,
+            edad,
+            email,
+            telefono
+        ]);
 
-    const sql = "UPDATE alumnos SET ? WHERE id_alumno = ?";
-    db.query(sql, [datos, id], (err) => {
-    if (err) {
-        console.error("Error SQL:", err);
-        return res.status(500).json({ error: "Error al actualizar alumno" });
+        return res.json({
+            mensaje: "Alumno creado correctamente",
+            alumno: result.rows[0]
+        });
+    } catch (err) {
+        console.error("❌ ERROR SQL:", err);
+        return res.status(500).json({ error: "Error al crear alumno" });
     }
-    res.json({ message: "Alumno actualizado" });
-    });
-});
-
-// Eliminar alumno
-router.delete("/:id", (req, res) => {
-    const { id } = req.params;
-
-    const sql = "DELETE FROM alumnos WHERE id_alumno = ?";
-    db.query(sql, id, (err) => {
-        if (err) {
-            console.error("Error SQL:", err);
-        return res.status(500).json({ error: "Error al eliminar alumno" });
-        }
-    res.json({ message: "Alumno eliminado" });
-    });
 });
 
 export default router;
