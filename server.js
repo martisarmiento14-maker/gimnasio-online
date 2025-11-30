@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 
 import express from "express";
 import cors from "cors";
@@ -5,6 +6,10 @@ import dotenv from "dotenv";
 dotenv.config();
 
 import "./database/db.js";
+=======
+import express from "express";
+import cors from "cors";
+>>>>>>> cb64933406b9d4a516d0b5df34625f820c62c1ef
 
 // Importar rutas
 import loginRoutes from "./routes/login.js";
