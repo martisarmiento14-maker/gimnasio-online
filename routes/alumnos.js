@@ -37,10 +37,10 @@ router.put("/:id", (req, res) => {
 
     const sql = "UPDATE alumnos SET ? WHERE id_alumno = ?";
     db.query(sql, [datos, id], (err) => {
-        if (err) {
-            console.error("Error SQL:", err);
-            return res.status(500).json({ error: "Error al actualizar alumno" });
-        }
+    if (err) {
+        console.error("Error SQL:", err);
+        return res.status(500).json({ error: "Error al actualizar alumno" });
+    }
     res.json({ message: "Alumno actualizado" });
     });
 });
@@ -53,8 +53,8 @@ router.delete("/:id", (req, res) => {
     db.query(sql, id, (err) => {
         if (err) {
             console.error("Error SQL:", err);
-            return res.status(500).json({ error: "Error al eliminar alumno" });
-            }
+        return res.status(500).json({ error: "Error al eliminar alumno" });
+        }
     res.json({ message: "Alumno eliminado" });
     });
 });
