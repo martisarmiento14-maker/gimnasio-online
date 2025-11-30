@@ -4,17 +4,15 @@ import pool from "../database/db.js";
 const router = express.Router();
 
 // Obtener todos los alumnos
-router.get("/", (req, res) => {
-    const sql = "SELECT * FROM alumnos ORDER BY id DESC";
-
-    db.query(sql, (err, results) => {
-        if (err) {
-            console.error("❌ ERROR SQL:", err);
-            return res.status(500).json({ error: "Error al obtener alumnos" });
-        }
-
-        res.json(results);
-    });
+router.get("/", async (req, res) => {
+    try {
+        const sql = "SELECT * FROM alumnos ORDER BY id DESC";
+        const result = await pool.query(sql);
+        res.json(result.rows);
+    } catch (err) {
+        console.error("❌ ERROR SQL:", err);
+        res.status(500).json({ error: "Error al obtener alumnos" });
+    }
 });
 
 // Crear nuevo alumno
