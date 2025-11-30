@@ -1,12 +1,11 @@
-import mysql from 'mysql2';
+import mysql from "mysql2";
 
-// CONEXIÓN A MYSQL EN RAILWAY DESDE RENDER
 export const db = mysql.createConnection({
-    host: 'shinkansen.proxy.rlwy.net',
-    port: 20021,
-    user: 'root',
-    password: 'OvIExEXKytNqEDCSzRnETnYgopWHlIPd',
-    database: 'railway'
+    host: "mysql.railway.internal",
+    port: 3306,
+    user: "root",
+    password: "OvIExEXKytNqEDCSzRnETnYgopWHIlPd",
+    database: "railway"
 });
 
 // Probar conexión
