@@ -3,27 +3,30 @@ import cors from "cors";
 import dotenv from "dotenv";
 dotenv.config();
 
+// Conexión a la base de datos
 import "./database/db.js";
 
-import alumnosRoutes from "./routes/alumnos.js";
-import cuotasRoutes from "./routes/cuotas.js";
-import asistenciasRoutes from "./routes/asistencias.js";
+// Importar rutas
 import loginRoutes from "./routes/login.js";
-
+import alumnosRoutes from "./routes/alumnos.js";
+import asistenciasRoutes from "./routes/asistencias.js";
+import cuotasRoutes from "./routes/cuotas.js";
 
 const app = express();
 
+// Middlewares
 app.use(cors());
 app.use(express.json());
 
+// Rutas
 app.use("/login", loginRoutes);
 app.use("/alumnos", alumnosRoutes);
 app.use("/asistencias", asistenciasRoutes);
 app.use("/cuotas", cuotasRoutes);
 
+// Puerto
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, () => {
-    console.log("🚀 Servidor escuchando en puerto " + PORT);
+    console.log(`🚀 Servidor escuchando en puerto ${PORT}`);
 });
-
