@@ -6,7 +6,7 @@ const router = express.Router();
 // ----- Fechas: lunes y domingo de la semana actual -----
 function getRangoSemanaActual() {
     const hoy = new Date();
-    const dia = hoy.getDay(); // 0 = domingo, 1 = lunes, ...
+    const dia = hoy.getDay();
     const diffLunes = dia === 0 ? -6 : 1 - dia;
 
     const lunes = new Date(hoy);
@@ -20,7 +20,7 @@ function getRangoSemanaActual() {
     return { lunes, domingo };
 }
 
-// ----- POST /asistencias (registrar asistencia por DNI) -----
+// ----- POST /asistencias -----
 router.post("/", async (req, res) => {
     const { dni } = req.body;
 
@@ -29,7 +29,7 @@ router.post("/", async (req, res) => {
     }
 
     try {
-        // 1) Buscar alumno por DNI
+        // 1) Buscar alumno
         const alumnoQuery = "SELECT * FROM alumnos WHERE dni = $1";
         const alumnosRes = await db.query(alumnoQuery, [dni]);
 
@@ -42,14 +42,15 @@ router.post("/", async (req, res) => {
 
         const limiteSemanal = alumno.dias_semana || null;
 
+        // PLANES
         const planesArr = [];
-        if (alumno.plan_eg == 1) planesArr.push("Plan EG");
-        if (alumno.plan_personalizado == 1) planesArr.push("Personalizado");
-        if (alumno.plan_running == 1) planesArr.push("Running");
+        if (alumno.plan_eg) planesArr.push("Plan EG");
+        if (alumno.plan_personalizado) planesArr.push("Personalizado");
+        if (alumno.plan_running) planesArr.push("Running");
 
         const textoPlanes = planesArr.length ? planesArr.join(" + ") : "-";
 
-        // 2) Buscar última cuota
+        // 2) Última cuota
         const cuotaQuery = `
             SELECT *
             FROM cuotas
@@ -58,7 +59,6 @@ router.post("/", async (req, res) => {
             LIMIT 1
         `;
         const cuotaRes = await db.query(cuotaQuery, [idAlumno]);
-
         const cuota = cuotaRes.rowCount > 0 ? cuotaRes.rows[0] : null;
 
         let alertaCuota = null;
@@ -76,7 +76,7 @@ router.post("/", async (req, res) => {
             }
         }
 
-        // 3) Contar asistencias de esta semana
+        // 3) Contar asistencias semanales
         const { lunes, domingo } = getRangoSemanaActual();
         const asistQuery = `
             SELECT COUNT(*) AS total
@@ -89,32 +89,49 @@ router.post("/", async (req, res) => {
 
         let seRegistra = true;
         let alertaDias = null;
-        let asistenciasSemanaFinal = asistenciasSemana;
 
         if (limiteSemanal && asistenciasSemana >= limiteSemanal) {
             seRegistra = false;
-            alertaDias = `Ya usaste tus ${limiteSemanal} días de entrenamiento esta semana.`;
+            alertaDias = `Ya usaste tus ${limiteSemanal} días esta semana.`;
         }
 
-        // 4) Registrar asistencia (con fecha + hora separadas)
-        // 4) Insertar asistencia solo si seRegistra === true
-if (seRegistra) {
-    const sqlInsert = `
-        INSERT INTO asistencias (id_alumno, fecha, hora)
-        VALUES ($1, CURRENT_DATE, CURRENT_TIME)
-    `;
-    db.query(sqlInsert, [idAlumno], (err4) => {
-        if (err4) {
-            console.error("Error registrando asistencia:", err4);
-            return res.status(500).json({ error: "Error al registrar asistencia" });
+        // 4) Registrar asistencia
+        if (seRegistra) {
+            const insertSQL = `
+                INSERT INTO asistencias (id_alumno, fecha, hora)
+                VALUES ($1, CURRENT_DATE, CURRENT_TIME)
+            `;
+            await db.query(insertSQL, [idAlumno]);
+
+            return res.json({
+                se_registro: true,
+                alumno: {
+                    id_alumno: alumno.id,
+                    nombre: alumno.nombre,
+                    apellido: alumno.apellido,
+                    dni: alumno.dni,
+                    nivel: alumno.nivel,
+                    equipo: alumno.equipo,
+                    planes: textoPlanes,
+                },
+                cuota: cuota
+                    ? {
+                          fecha_vencimiento: cuota.fecha_vencimiento,
+                          estado: estadoCuota,
+                      }
+                    : null,
+                limite_semanal: limiteSemanal,
+                asistencias_semana: asistenciasSemana + 1,
+                alerta_cuota: alertaCuota,
+                alerta_dias: alertaDias,
+            });
         }
 
-        asistenciasSemanaFinal = asistenciasSemana + 1;
-
+        // --- NUEVO: Respuesta cuando NO se registra asistencia ---
         return res.json({
-            se_registro: true,
+            se_registro: false,
             alumno: {
-                id_alumno: alumno.id_alumno,
+                id_alumno: alumno.id,
                 nombre: alumno.nombre,
                 apellido: alumno.apellido,
                 dni: alumno.dni,
@@ -126,16 +143,13 @@ if (seRegistra) {
                 ? {
                     fecha_vencimiento: cuota.fecha_vencimiento,
                     estado: estadoCuota,
-                }
+                  }
                 : null,
             limite_semanal: limiteSemanal,
-            asistencias_semana: asistenciasSemanaFinal,
+            asistencias_semana: asistenciasSemana,
             alerta_cuota: alertaCuota,
             alerta_dias: alertaDias,
         });
-    });
-}
-
 
     } catch (err) {
         console.error("Error en asistencias:", err);
