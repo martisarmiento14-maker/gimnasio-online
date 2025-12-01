@@ -1,6 +1,8 @@
-// database/db.js — PostgreSQL definitivo
-
 import pkg from "pg";
+import dotenv from "dotenv";
+
+dotenv.config();
+
 const { Pool } = pkg;
 
 const pool = new Pool({
@@ -9,9 +11,7 @@ const pool = new Pool({
     password: process.env.PGPASSWORD,
     database: process.env.PGDATABASE,
     port: process.env.PGPORT,
-    ssl: {
-        rejectUnauthorized: false,
-    },
+    ssl: { rejectUnauthorized: false }
 });
 
 export default pool;
