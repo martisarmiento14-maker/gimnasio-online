@@ -77,14 +77,30 @@ router.post("/", async (req, res) => {
 
         const equipo = await asignarEquipoAutomatico();
 
-        const fecha_vencimiento = new Date();
-        fecha_vencimiento.setDate(fecha_vencimiento.getDate() + 30);
+        function sumarUnMes(fecha) {
+            const f = new Date(fecha + "T00:00:00");
+            f.setMonth(f.getMonth() + 1);
+            return f.toISOString().split("T")[0]; 
+        }
+
+// si viene desde el formulario (CREAR)
+        let fecha_vencimiento = req.body.fecha_vencimiento;
+
+// si NO viene (por ejemplo una API externa)
+        if (!fecha_vencimiento) {
+            const hoy = new Date();
+            const yyyy = hoy.getFullYear();
+            const mm = String(hoy.getMonth() + 1).padStart(2, "0");
+            const dd = String(hoy.getDate()).padStart(2, "0");
+            fecha_vencimiento = sumarUnMes(`${yyyy}-${mm}-${dd}`);
+        }
+
 
         const sql = `
             INSERT INTO alumnos
             (nombre, apellido, dni, edad, email, telefono, nivel, equipo, 
-             plan_eg, plan_personalizado, plan_running, dias_semana,
-             fecha_vencimiento, activo)
+            plan_eg, plan_personalizado, plan_running, dias_semana,
+            fecha_vencimiento, activo)
             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,1)
             RETURNING *;
         `;
