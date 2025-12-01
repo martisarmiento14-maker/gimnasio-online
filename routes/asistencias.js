@@ -1,6 +1,6 @@
 // routes/asistencias.js
 import express from "express";
-import pool from "../db.js";
+import pool from "../database/db";
 
 const router = express.Router();
 

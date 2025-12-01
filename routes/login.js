@@ -1,6 +1,6 @@
 // routes/login.js
 import express from "express";
-import pool from "../db.js";
+import pool from "../database/db";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcrypt";
 
