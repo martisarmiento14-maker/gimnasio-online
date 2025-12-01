@@ -1,48 +1,146 @@
 import express from "express";
-import db from "../database/db.js";
+import pool from "../database/db.js";
 
 const router = express.Router();
 
-// Registrar una nueva cuota
-router.post("/", (req, res) => {
-    const datos = req.body;
-
-    const sql = "INSERT INTO cuotas SET ?";
-    db.query(sql, datos, (err) => {
-        if (err) {
-            console.error("Error SQL:", err);
-            return res.status(500).json({ error: "Error al registrar cuota" });
-        }
-        res.json({ message: "Cuota registrada" });
-    });
+// ------------------------------------------------------------
+// GET: Todas las cuotas
+// ------------------------------------------------------------
+router.get("/", async (req, res) => {
+    try {
+        const sql = `
+            SELECT c.*, a.nombre, a.apellido
+            FROM cuotas c
+            LEFT JOIN alumnos a ON c.id_alumno = a.id
+            ORDER BY c.fecha_pago DESC
+        `;
+        const result = await pool.query(sql);
+        res.json(result.rows);
+    } catch (err) {
+        console.error("❌ ERROR SQL GET CUOTAS:", err);
+        res.status(500).json({ error: "Error al obtener cuotas" });
+    }
 });
 
-// Obtener historial de cuotas de un alumno
-router.get("/historial/:id", (req, res) => {
-    const { id } = req.params;
-
-    const sql = "SELECT * FROM cuotas WHERE id_alumno = ? ORDER BY fecha_pago DESC";
-    db.query(sql, id, (err, results) => {
-        if (err) {
-            console.error("Error SQL:", err);
-            return res.status(500).json({ error: "Error al obtener historial" });
-        }
-        res.json(results);
-    });
+// ------------------------------------------------------------
+// GET: cuotas por alumno
+// ------------------------------------------------------------
+router.get("/alumno/:id", async (req, res) => {
+    try {
+        const sql = `
+            SELECT *
+            FROM cuotas
+            WHERE id_alumno = $1
+            ORDER BY fecha_pago DESC
+        `;
+        const result = await pool.query(sql, [req.params.id]);
+        res.json(result.rows);
+    } catch (err) {
+        console.error("❌ ERROR SQL GET POR ALUMNO:", err);
+        res.status(500).json({ error: "Error al obtener cuotas del alumno" });
+    }
 });
 
-// Obtener última cuota pagada (para estado del alumno)
-router.get("/ultima/:id", (req, res) => {
-    const { id } = req.params;
+// ------------------------------------------------------------
+// POST: Crear cuota
+// ------------------------------------------------------------
+router.post("/", async (req, res) => {
+    try {
+        const {
+            id_alumno,
+            monto,
+            fecha_pago,
+            metodo_pago,
+            comentarios
+        } = req.body;
 
-    const sql = "SELECT * FROM cuotas WHERE id_alumno = ? ORDER BY fecha_pago DESC LIMIT 1";
-    db.query(sql, id, (err, results) => {
-        if (err) {
-            console.error("Error SQL:", err);
-            return res.status(500).json({ error: "Error al obtener estado" });
-        }
-        res.json(results[0] || null);
-    });
+        const sql = `
+            INSERT INTO cuotas (
+                id_alumno, monto, fecha_pago, metodo_pago, comentarios
+            ) VALUES (
+                $1, $2, $3, $4, $5
+            )
+            RETURNING *
+        `;
+
+        const result = await pool.query(sql, [
+            id_alumno,
+            monto,
+            fecha_pago,
+            metodo_pago,
+            comentarios
+        ]);
+
+        res.json({
+            mensaje: "Cuota creada correctamente",
+            cuota: result.rows[0]
+        });
+
+    } catch (err) {
+        console.error("❌ ERROR SQL POST CUOTAS:", err);
+        res.status(500).json({ error: "Error al crear cuota" });
+    }
+});
+
+// ------------------------------------------------------------
+// PUT: Actualizar cuota
+// ------------------------------------------------------------
+router.put("/:id", async (req, res) => {
+    try {
+        const {
+            id_alumno,
+            monto,
+            fecha_pago,
+            metodo_pago,
+            comentarios
+        } = req.body;
+
+        const sql = `
+            UPDATE cuotas SET
+                id_alumno = $1,
+                monto = $2,
+                fecha_pago = $3,
+                metodo_pago = $4,
+                comentarios = $5
+            WHERE id = $6
+            RETURNING *
+        `;
+
+        const result = await pool.query(sql, [
+            id_alumno,
+            monto,
+            fecha_pago,
+            metodo_pago,
+            comentarios,
+            req.params.id
+        ]);
+
+        res.json({
+            mensaje: "Cuota actualizada correctamente",
+            cuota: result.rows[0]
+        });
+
+    } catch (err) {
+        console.error("❌ ERROR SQL PUT CUOTAS:", err);
+        res.status(500).json({ error: "Error al actualizar cuota" });
+    }
+});
+
+// ------------------------------------------------------------
+// DELETE: Eliminar cuota
+// ------------------------------------------------------------
+router.delete("/:id", async (req, res) => {
+    try {
+        const sql = "DELETE FROM cuotas WHERE id = $1";
+
+        await pool.query(sql, [req.params.id]);
+
+        res.json({ mensaje: "Cuota eliminada correctamente" });
+
+    } catch (err) {
+        console.error("❌ ERROR SQL DELETE CUOTAS:", err);
+        res.status(500).json({ error: "Error al eliminar cuota" });
+    }
 });
 
 export default router;
