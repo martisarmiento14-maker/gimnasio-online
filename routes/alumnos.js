@@ -1,6 +1,7 @@
 import express from "express";
 import pool from "../database/db.js";
 
+
 const router = express.Router();
 
 // ------------------------------------------------------------
@@ -155,3 +156,4 @@ router.put("/:id", async (req, res) => {
 export default router;
 
 //prueba de sincronizacion
+console.log("🔥 Backend actualizado correctamente!");
