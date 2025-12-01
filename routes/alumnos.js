@@ -64,6 +64,7 @@ router.post("/", async (req, res) => {
         const {
             nombre,
             apellido,
+            dni,             // 👈 AHORA TOMAMOS DNI
             edad,
             email,
             telefono,
@@ -74,25 +75,24 @@ router.post("/", async (req, res) => {
             dias_semana
         } = req.body;
 
-        // EQUIPO AUTOMÁTICO EQUILIBRADO
         const equipo = await asignarEquipoAutomatico();
 
-        // FECHA DE VENCIMIENTO: +30 días por defecto
         const fecha_vencimiento = new Date();
         fecha_vencimiento.setDate(fecha_vencimiento.getDate() + 30);
 
         const sql = `
             INSERT INTO alumnos
-            (nombre, apellido, edad, email, telefono, nivel, equipo, 
+            (nombre, apellido, dni, edad, email, telefono, nivel, equipo, 
              plan_eg, plan_personalizado, plan_running, dias_semana,
              fecha_vencimiento, activo)
-            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,1)
+            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,1)
             RETURNING *;
         `;
 
         const result = await pool.query(sql, [
             nombre,
             apellido,
+            dni,                 // 👈 PARAM 3
             edad,
             email,
             telefono,
@@ -120,6 +120,7 @@ router.put("/:id", async (req, res) => {
         const {
             nombre,
             apellido,
+            dni,                 // 👈 AGREGAMOS DNI
             edad,
             email,
             telefono,
@@ -133,16 +134,26 @@ router.put("/:id", async (req, res) => {
 
         const sql = `
             UPDATE alumnos SET
-            nombre=$1, apellido=$2, edad=$3, email=$4, telefono=$5,
-            nivel=$6, plan_eg=$7, plan_personalizado=$8, plan_running=$9,
-            dias_semana=$10, fecha_vencimiento=$11
-            WHERE id=$12
+            nombre=$1,
+            apellido=$2,
+            dni=$3,
+            edad=$4,
+            email=$5,
+            telefono=$6,
+            nivel=$7,
+            plan_eg=$8,
+            plan_personalizado=$9,
+            plan_running=$10,
+            dias_semana=$11,
+            fecha_vencimiento=$12
+            WHERE id=$13
             RETURNING *;
         `;
 
         const result = await pool.query(sql, [
             nombre,
             apellido,
+            dni,                 // 👈 PARAM 3
             edad,
             email,
             telefono,
