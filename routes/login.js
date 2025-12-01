@@ -1,45 +1,55 @@
+// routes/login.js
 import express from "express";
-const router = express.Router();
-import db from "../database/db.js";
+import pool from "../db.js";
+import jwt from "jsonwebtoken";
+import bcrypt from "bcrypt";
 
-// LOGIN CON EMAIL Y PASSWORD
+const router = express.Router();
+
+/* ============================================
+   LOGIN
+   ============================================ */
 router.post("/", async (req, res) => {
     try {
         const { usuario, clave } = req.body;
 
         if (!usuario || !clave) {
-            return res.status(400).json({ ok: false, mensaje: "Faltan datos" });
+            return res.status(400).json({ error: "Falta usuario o contraseña" });
         }
 
-        // Buscar usuario por EMAIL
-        const sql = "SELECT * FROM usuarios WHERE email = $1 LIMIT 1";
-        const result = await db.query(sql, [usuario]);
+        // 1) Buscar usuario en BD
+        const query = "SELECT * FROM administrador WHERE usuario = $1";
+        const result = await pool.query(query, [usuario]);
 
         if (result.rows.length === 0) {
-            return res.status(404).json({ ok: false, mensaje: "Usuario no encontrado" });
+            return res.status(401).json({ error: "Usuario incorrecto" });
         }
 
-        const user = result.rows[0];
+        const admin = result.rows[0];
 
-        // Comparar password
-        if (user.password !== clave) {
-            return res.status(401).json({ ok: false, mensaje: "Contraseña incorrecta" });
+        // 2) Comparar contraseña
+        const esValida = await bcrypt.compare(clave, admin.clave_hash);
+
+        if (!esValida) {
+            return res.status(401).json({ error: "Contraseña incorrecta" });
         }
 
-        // Login OK
-        return res.json({
-            ok: true,
-            mensaje: "Login exitoso",
-            usuario: {
-                id: user.id,
-                nombre: user.nombre,
-                email: user.email
-            }
+        // 3) Crear token
+        const token = jwt.sign(
+            { id: admin.id, usuario: admin.usuario },
+            process.env.JWT_SECRET,
+            { expiresIn: "12h" }
+        );
+
+        // 4) Enviar token
+        res.json({
+            message: "Login exitoso",
+            token
         });
 
     } catch (error) {
-        console.error("Error en login:", error);
-        res.status(500).json({ ok: false, mensaje: "Error interno en el servidor" });
+        console.error("ERROR LOGIN:", error);
+        res.status(500).json({ error: "Error en el login" });
     }
 });
 

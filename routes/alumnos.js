@@ -1,251 +1,154 @@
+// routes/alumnos.js
 import express from "express";
-import pool from "../database/db.js";
+import pool from "../db.js";
 
 const router = express.Router();
 
-// =====================================
-// FUNCIÓN: Asignación automática equilibrada de equipos
-// =====================================
-async function asignarEquipoAutomatico() {
-    const countBlanco = await pool.query(
-        "SELECT COUNT(*) FROM alumnos WHERE equipo = 'blanco'"
-    );
-    const countMorado = await pool.query(
-        "SELECT COUNT(*) FROM alumnos WHERE equipo = 'morado'"
-    );
-
-    const blanco = Number(countBlanco.rows[0].count);
-    const morado = Number(countMorado.rows[0].count);
-
-    if (blanco < morado) return "blanco";
-    if (morado < blanco) return "morado";
-
-    return Math.random() < 0.5 ? "blanco" : "morado";
-}
-
-// =====================================
-// GET — Lista TODOS los alumnos
-// (el frontend decide si filtra activos/inactivos)
-// =====================================
+/* =============================
+   1) OBTENER TODOS LOS ALUMNOS
+   ============================= */
 router.get("/", async (req, res) => {
     try {
-        const sql = "SELECT * FROM alumnos ORDER BY id ASC";
-        const result = await pool.query(sql);
+        const result = await pool.query("SELECT * FROM alumnos ORDER BY id ASC");
         res.json(result.rows);
     } catch (error) {
-        console.error("Error obteniendo alumnos:", error);
+        console.error("ERROR GET /alumnos:", error);
         res.status(500).json({ error: "Error al obtener alumnos" });
     }
 });
 
-// =====================================
-// GET — Detalle alumno por ID
-// =====================================
-router.get("/:id/detalle", async (req, res) => {
+/* =============================
+   2) OBTENER ALUMNO POR DNI
+   ============================= */
+router.get("/dni/:dni", async (req, res) => {
     try {
-        const sql = "SELECT * FROM alumnos WHERE id = $1";
-        const result = await pool.query(sql, [req.params.id]);
+        const { dni } = req.params;
+        const result = await pool.query("SELECT * FROM alumnos WHERE dni = $1", [dni]);
 
-        if (result.rows.length === 0)
+        if (result.rows.length === 0) {
             return res.status(404).json({ error: "Alumno no encontrado" });
+        }
 
         res.json(result.rows[0]);
     } catch (error) {
-        console.error("Error obteniendo detalle:", error);
-        res.status(500).json({ error: "Error al obtener detalle" });
+        console.error("ERROR GET /alumnos/dni:", error);
+        res.status(500).json({ error: "Error al buscar alumno" });
     }
 });
 
-// =====================================
-// POST — Crear alumno nuevo
-// =====================================
-// POST — Crear alumno
+/* =============================
+   3) CREAR ALUMNO
+   ============================= */
 router.post("/", async (req, res) => {
     try {
         const {
-            nombre,
-            apellido,
-            dni,
-            edad,
-            email,
-            telefono,
-            nivel,
-            plan_eg,
-            plan_personalizado,
-            plan_running,
-            dias_semana,
-            fecha_vencimiento   // 👈 VIENE DIRECTO
+            nombre, apellido, dni, telefono, nivel,
+            equipo, plan_eg, plan_personalizado, plan_running,
+            dias_semana, fecha_vencimiento
         } = req.body;
-
-        const equipo = await asignarEquipoAutomatico();
-
-        // ❗ FORZAMOS A NO TOCAR LA FECHA
-        const fechaFinal = fecha_vencimiento;  
 
         const sql = `
             INSERT INTO alumnos
-            (nombre, apellido, dni, edad, email, telefono, nivel, equipo, 
-            plan_eg, plan_personalizado, plan_running, dias_semana,
-            fecha_vencimiento, activo)
-            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,1)
+            (nombre, apellido, dni, telefono, nivel, equipo, plan_eg, plan_personalizado, plan_running, dias_semana, fecha_vencimiento, activo)
+            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,true)
             RETURNING *;
         `;
 
-        const result = await pool.query(sql, [
-            nombre,
-            apellido,
-            dni,
-            edad,
-            email,
-            telefono,
-            nivel,
-            equipo,
-            plan_eg,
-            plan_personalizado,
-            plan_running,
-            dias_semana,
-            fechaFinal
-        ]);
+        const values = [
+            nombre, apellido, dni, telefono, nivel,
+            equipo, plan_eg, plan_personalizado, plan_running,
+            dias_semana, fecha_vencimiento
+        ];
 
+        const result = await pool.query(sql, values);
         res.json(result.rows[0]);
+
     } catch (error) {
-        console.error("Error creando alumno:", error);
+        console.error("ERROR POST /alumnos:", error);
         res.status(500).json({ error: "Error al crear alumno" });
     }
 });
 
-// =====================================
-// PUT — EDITAR alumno
-// =====================================
-// PUT — EDITAR alumno
+/* =============================
+   4) ACTUALIZAR ALUMNO
+   ============================= */
 router.put("/:id", async (req, res) => {
     try {
+        const { id } = req.params;
         const {
-            nombre,
-            apellido,
-            dni,
-            edad,
-            email,
-            telefono,
-            nivel,
-            plan_eg,
-            plan_personalizado,
-            plan_running,
-            dias_semana,
-            fecha_vencimiento   // 👈 USAMOS ESTA FECHA DIRECTA
+            nombre, apellido, dni, telefono, nivel,
+            plan_eg, plan_personalizado, plan_running,
+            dias_semana, fecha_vencimiento
         } = req.body;
 
         const sql = `
-            UPDATE alumnos SET
-            nombre=$1,
-            apellido=$2,
-            dni=$3,
-            edad=$4,
-            email=$5,
-            telefono=$6,
-            nivel=$7,
-            plan_eg=$8,
-            plan_personalizado=$9,
-            plan_running=$10,
-            dias_semana=$11,
-            fecha_vencimiento=$12
-            WHERE id=$13
+            UPDATE alumnos
+            SET nombre=$1, apellido=$2, dni=$3, telefono=$4, nivel=$5,
+                plan_eg=$6, plan_personalizado=$7, plan_running=$8,
+                dias_semana=$9, fecha_vencimiento=$10
+            WHERE id=$11
             RETURNING *;
         `;
 
         const result = await pool.query(sql, [
-            nombre,
-            apellido,
-            dni,
-            edad,
-            email,
-            telefono,
-            nivel,
-            plan_eg,
-            plan_personalizado,
-            plan_running,
-            dias_semana,
-            fecha_vencimiento,  // 👈 DIRECTO
-            req.params.id
+            nombre, apellido, dni, telefono, nivel,
+            plan_eg, plan_personalizado, plan_running,
+            dias_semana, fecha_vencimiento, id
         ]);
 
         res.json(result.rows[0]);
 
     } catch (error) {
-        console.error("Error al editar alumno:", error);
-        res.status(500).json({ error: "Error al editar alumno" });
+        console.error("ERROR PUT /alumnos:", error);
+        res.status(500).json({ error: "Error al actualizar alumno" });
     }
 });
 
-// =====================================
-// PUT — Cambiar equipo (desde cuotas)
-// =====================================
-router.put("/:id/equipo", async (req, res) => {
-    try {
-        const { equipo } = req.body;
-
-        const sql = `
-            UPDATE alumnos SET equipo=$1
-            WHERE id=$2 RETURNING *;
-        `;
-
-        const result = await pool.query(sql, [equipo, req.params.id]);
-        res.json(result.rows[0]);
-
-    } catch (error) {
-        console.error("Error cambiando equipo:", error);
-        res.status(500).json({ error: "Error al cambiar equipo" });
-    }
-});
-
-// =====================================
-// PUT — Activar alumno
-// =====================================
-router.put("/:id/activar", async (req, res) => {
-    try {
-        const sql = `
-            UPDATE alumnos SET activo=1
-            WHERE id=$1 RETURNING *;
-        `;
-        const result = await pool.query(sql, [req.params.id]);
-        res.json(result.rows[0]);
-
-    } catch (error) {
-        console.error("Error activando alumno:", error);
-        res.status(500).json({ error: "Error al activar alumno" });
-    }
-});
-
-// =====================================
-// PUT — Desactivar alumno
-// =====================================
-router.put("/:id/desactivar", async (req, res) => {
-    try {
-        const sql = `
-            UPDATE alumnos SET activo=0
-            WHERE id=$1 RETURNING *;
-        `;
-        const result = await pool.query(sql, [req.params.id]);
-        res.json(result.rows[0]);
-
-    } catch (error) {
-        console.error("Error desactivando alumno:", error);
-        res.status(500).json({ error: "Error al desactivar alumno" });
-    }
-});
-
-// =====================================
-// DELETE — Borrar alumno
-// =====================================
+/* =============================
+   5) BORRAR ALUMNO
+   ============================= */
 router.delete("/:id", async (req, res) => {
     try {
-        const sql = "DELETE FROM alumnos WHERE id=$1";
-        await pool.query(sql, [req.params.id]);
-        res.json({ mensaje: "Alumno eliminado" });
-
+        const { id } = req.params;
+        await pool.query("DELETE FROM alumnos WHERE id = $1", [id]);
+        res.json({ message: "Alumno eliminado" });
     } catch (error) {
-        console.error("Error eliminando alumno:", error);
-        res.status(500).json({ error: "Error al eliminar alumno" });
+        console.error("ERROR DELETE /alumnos:", error);
+        res.status(500).json({ error: "Error al borrar alumno" });
+    }
+});
+
+/* =============================
+   6) LISTAR VENCIDOS
+   ============================= */
+router.get("/vencidos", async (req, res) => {
+    try {
+        const result = await pool.query(`
+            SELECT * FROM alumnos
+            WHERE fecha_vencimiento < CURRENT_DATE
+            AND activo = true
+        `);
+        res.json(result.rows);
+    } catch (error) {
+        console.error("ERROR GET /alumnos/vencidos:", error);
+        res.status(500).json({ error: "Error al obtener vencidos" });
+    }
+});
+
+/* =============================
+   7) LISTAR POR VENCER (7 días)
+   ============================= */
+router.get("/por-vencer", async (req, res) => {
+    try {
+        const result = await pool.query(`
+            SELECT * FROM alumnos
+            WHERE fecha_vencimiento BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '7 days'
+            AND activo = true
+        `);
+        res.json(result.rows);
+    } catch (error) {
+        console.error("ERROR GET /alumnos/por-vencer:", error);
+        res.status(500).json({ error: "Error al obtener por vencer" });
     }
 });
 
