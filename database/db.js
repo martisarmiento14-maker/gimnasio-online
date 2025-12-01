@@ -1,17 +1,19 @@
-import pkg from "pg";
+import pg from "pg";
 import dotenv from "dotenv";
-
 dotenv.config();
 
-const { Pool } = pkg;
+const { Pool } = pg;
 
 const pool = new Pool({
-    host: process.env.PGHOST,
-    user: process.env.PGUSER,
-    password: process.env.PGPASSWORD,
-    database: process.env.PGDATABASE,
-    port: process.env.PGPORT,
-    ssl: { rejectUnauthorized: false }
+    connectionString: process.env.CONNECTION_STRING,
+    ssl: {
+        rejectUnauthorized: false
+    }
 });
 
-export default pool;
+// Wrapper: convierte pool.query en db.query
+const db = {
+    query: (text, params) => pool.query(text, params),
+};
+
+export default db;
