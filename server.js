@@ -5,11 +5,11 @@ dotenv.config();
 
 import "./database/db.js";
 
-// Importar rutas
-import loginRoutes from "./routes/login.js";
 import alumnosRoutes from "./routes/alumnos.js";
-import asistenciasRoutes from "./routes/asistencias.js";
 import cuotasRoutes from "./routes/cuotas.js";
+import asistenciasRoutes from "./routes/asistencias.js";
+import loginRoutes from "./routes/login.js";
+
 
 const app = express();
 
@@ -26,6 +26,4 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
     console.log("🚀 Servidor escuchando en puerto " + PORT);
 });
-
-export default app;
 

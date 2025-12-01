@@ -1,5 +1,5 @@
 import express from "express";
-import db from "../database/db.js";
+import db from "../database/db";
 // import bcrypt from "bcrypt";   ← BORRA esto si no usas bcrypt
 
 const router = express.Router();
