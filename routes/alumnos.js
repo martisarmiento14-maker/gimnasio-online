@@ -1,155 +1,65 @@
-import express from "express";
-import pool from "../database/db.js";
+// URL correcta del backend
+const API_URL = "https://gimnasio-online-1.onrender.com";
 
-const router = express.Router();
-
-// ------------------------------------------------------------
-// GET: todos los alumnos
-// ------------------------------------------------------------
-router.get("/", async (req, res) => {
-    try {
-        const sql = "SELECT * FROM alumnos ORDER BY id DESC";
-        const result = await pool.query(sql);
-        res.json(result.rows);
-    } catch (err) {
-        console.error("❌ ERROR SQL:", err);
-        res.status(500).json({ error: "Error al obtener alumnos" });
-    }
+document.addEventListener("DOMContentLoaded", () => {
+    cargarAlumnos();
 });
 
-// ------------------------------------------------------------
-// GET: detalle por id
-// ------------------------------------------------------------
-router.get("/:id/detalle", async (req, res) => {
+// CARGAR LISTA DE ALUMNOS
+async function cargarAlumnos() {
+    const cont = document.getElementById("listaAlumnos");
+    cont.innerHTML = "<tr><td colspan='7'>Cargando...</td></tr>";
+
     try {
-        const sql = "SELECT * FROM alumnos WHERE id = $1";
-        const result = await pool.query(sql, [req.params.id]);
+        const res = await fetch(`${API_URL}/alumnos`);
+        const alumnos = await res.json();
 
-        if (result.rows.length === 0) {
-            return res.status(404).json({ error: "Alumno no encontrado" });
-        }
+        let html = "";
 
-        res.json({ alumno: result.rows[0] });
+        alumnos.forEach(al => {
+            const planes = obtenerPlanesTexto(al);
 
-    } catch (err) {
-        console.error("❌ ERROR SQL:", err);
-        res.status(500).json({ error: "Error al obtener detalle" });
-    }
-});
+            const fecha = al.fecha_vencimiento 
+                ? al.fecha_vencimiento.split("T")[0]
+                : "-";
 
-// ------------------------------------------------------------
-// POST: crear alumno COMPLETO
-// ------------------------------------------------------------
-router.post("/", async (req, res) => {
-    try {
-        const {
-            nombre,
-            apellido,
-            dni,
-            telefono,
-            nivel,
-            plan_eg,
-            plan_personalizado,
-            plan_running,
-            dias_semana,
-            fecha_vencimiento
-        } = req.body;
-
-        const sql = `
-            INSERT INTO alumnos (
-                nombre, apellido, dni, telefono, nivel,
-                plan_eg, plan_personalizado, plan_running,
-                dias_semana, fecha_vencimiento, activo
-            )
-            VALUES (
-                $1,$2,$3,$4,$5,
-                $6,$7,$8,
-                $9,$10,1
-            )
-            RETURNING *
-        `;
-
-        const result = await pool.query(sql, [
-            nombre,
-            apellido,
-            dni,
-            telefono,
-            nivel,
-            plan_eg,
-            plan_personalizado,
-            plan_running,
-            dias_semana,
-            fecha_vencimiento
-        ]);
-
-        res.json({
-            mensaje: "Alumno creado correctamente",
-            alumno: result.rows[0]
+            html += `
+                <tr>
+                    <td>${al.nombre} ${al.apellido}</td>
+                    <td>${al.dni || "-"}</td>
+                    <td>${al.nivel || "-"}</td>
+                    <td>${al.equipo || "-"}</td>
+                    <td>${planes}</td>
+                    <td>${fecha}</td>
+                    <td>
+                        <button class="btn-edit" onclick="editarAlumno(${al.id})">
+                            Editar
+                        </button>
+                    </td>
+                </tr>
+            `;
         });
 
-    } catch (err) {
-        console.error("❌ ERROR SQL:", err);
-        res.status(500).json({ error: "Error al crear alumno" });
-    }
-});
-
-// ------------------------------------------------------------
-// PUT: editar alumno COMPLETO
-// ------------------------------------------------------------
-router.put("/:id", async (req, res) => {
-    try {
-        const {
-            nombre,
-            apellido,
-            dni,
-            telefono,
-            nivel,
-            plan_eg,
-            plan_personalizado,
-            plan_running,
-            dias_semana,
-            fecha_vencimiento
-        } = req.body;
-
-        const sql = `
-            UPDATE alumnos SET
-                nombre = $1,
-                apellido = $2,
-                dni = $3,
-                telefono = $4,
-                nivel = $5,
-                plan_eg = $6,
-                plan_personalizado = $7,
-                plan_running = $8,
-                dias_semana = $9,
-                fecha_vencimiento = $10
-            WHERE id = $11
-            RETURNING *
-        `;
-
-        const result = await pool.query(sql, [
-            nombre,
-            apellido,
-            dni,
-            telefono,
-            nivel,
-            plan_eg,
-            plan_personalizado,
-            plan_running,
-            dias_semana,
-            fecha_vencimiento,
-            req.params.id
-        ]);
-
-        res.json({
-            mensaje: "Alumno actualizado correctamente",
-            alumno: result.rows[0]
-        });
+        cont.innerHTML = html;
 
     } catch (err) {
-        console.error("❌ ERROR SQL:", err);
-        res.status(500).json({ error: "Error al editar alumno" });
+        console.error(err);
+        cont.innerHTML = "<tr><td colspan='7'>Error al cargar alumnos</td></tr>";
     }
-});
+}
 
-export default router;
+// Convierte los planes en texto legible
+function obtenerPlanesTexto(al) {
+    let p = [];
+
+    if (al.plan_eg === 1) p.push("EG");
+    if (al.plan_personalizado === 1) p.push("Pers.");
+    if (al.plan_running === 1) p.push("Running");
+
+    return p.length > 0 ? p.join(" + ") : "-";
+}
+
+// Redirigir a editar
+function editarAlumno(id) {
+    window.location.href = `form-alumno.html?id=${id}`;
+}
