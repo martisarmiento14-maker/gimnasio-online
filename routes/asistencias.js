@@ -1,14 +1,15 @@
-// routes/asistencias.js
-const express = require("express");
+// routes/asistencias.js  — versión FINAL ES MODULES
+
+import express from "express";
 const router = express.Router();
-const pool = require("../database/db"); // PostgreSQL
+import pool from "../database/db.js";
 
 // ---------------------------------------
-// OBTENER LUNES Y DOMINGO DE LA SEMANA ACTUAL
+// SEMANA ACTUAL — lunes a domingo
 // ---------------------------------------
 function getRangoSemanaActual() {
     const hoy = new Date();
-    const dia = hoy.getDay(); // 0 domingo, 1 lunes...
+    const dia = hoy.getDay(); 
 
     const diffLunes = dia === 0 ? -6 : 1 - dia;
 
@@ -24,7 +25,7 @@ function getRangoSemanaActual() {
 }
 
 // ---------------------------------------
-// POST /asistencias  → Registrar asistencia por DNI
+// POST /asistencias → registrar asistencia
 // ---------------------------------------
 router.post("/", async (req, res) => {
     const { dni } = req.body;
@@ -34,9 +35,7 @@ router.post("/", async (req, res) => {
     }
 
     try {
-        // -----------------------------------------------------
-        // 1) Buscar alumno por DNI
-        // -----------------------------------------------------
+        // 1) Alumno por DNI
         const alumnoRes = await pool.query(
             "SELECT * FROM alumnos WHERE dni = $1 AND activo = 1",
             [dni]
@@ -49,10 +48,9 @@ router.post("/", async (req, res) => {
         const alumno = alumnoRes.rows[0];
         const idAlumno = alumno.id;
 
-        // Limite por semana
         const limiteSemanal = alumno.dias_semana || null;
 
-        // Texto del plan igual que tu versión vieja
+        // Texto planes
         const planesArr = [];
         if (alumno.plan_eg) planesArr.push("Plan EG");
         if (alumno.plan_personalizado) planesArr.push("Personalizado");
@@ -60,9 +58,7 @@ router.post("/", async (req, res) => {
 
         const textoPlanes = planesArr.length ? planesArr.join(" + ") : "-";
 
-        // -----------------------------------------------------
-        // 2) Fecha de vencimiento → VIENE DESDE ALUMNOS AHORA
-        // -----------------------------------------------------
+        // 2) Cuota → desde alumnos.fecha_vencimiento
         let estadoCuota = null;
         let alertaCuota = null;
 
@@ -75,15 +71,13 @@ router.post("/", async (req, res) => {
 
             if (vto < hoy) {
                 estadoCuota = "vencida";
-                alertaCuota = "La cuota está vencida. Deberías regularizar el pago.";
+                alertaCuota = "La cuota está vencida. Regularizá el pago.";
             } else {
                 estadoCuota = "vigente";
             }
         }
 
-        // -----------------------------------------------------
-        // 3) Contar asistencias de esta semana
-        // -----------------------------------------------------
+        // 3) Asistencias de la semana
         const { lunes, domingo } = getRangoSemanaActual();
 
         const asistRes = await pool.query(
@@ -103,23 +97,18 @@ router.post("/", async (req, res) => {
             alertaDias = `Ya usaste tus ${limiteSemanal} días de entrenamiento esta semana.`;
         }
 
-        // -----------------------------------------------------
-        // 4) Registrar asistencia (si corresponde)
-        // -----------------------------------------------------
-        let asistenciasSemanaFinal = asistenciasSemana;
+        // 4) Registrar asistencia
+        let asistFinal = asistenciasSemana;
 
         if (seRegistra) {
             await pool.query(
                 "INSERT INTO asistencias (id_alumno, fecha) VALUES ($1, NOW())",
                 [idAlumno]
             );
-
-            asistenciasSemanaFinal++;
+            asistFinal++;
         }
 
-        // -----------------------------------------------------
-        // 5) Respuesta final
-        // -----------------------------------------------------
+        // 5) Respuesta
         return res.json({
             se_registro: seRegistra,
             alumno: {
@@ -140,7 +129,7 @@ router.post("/", async (req, res) => {
                 : null,
 
             limite_semanal: limiteSemanal,
-            asistencias_semana: asistenciasSemanaFinal,
+            asistencias_semana: asistFinal,
 
             alerta_cuota: alertaCuota,
             alerta_dias: alertaDias,
