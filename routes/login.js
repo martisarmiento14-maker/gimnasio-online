@@ -6,29 +6,30 @@ const router = express.Router();
 router.post("/", (req, res) => {
     const { usuario, clave } = req.body;
 
-    if (!usuario || !clave) {
-        return res.status(400).json({ error: "Faltan datos" });
-    }
+    console.log("=> Datos recibidos:", usuario, clave);
 
-    const sql = "SELECT * FROM usuarios WHERE email = ?";
-
-    db.query(sql, [usuario], (err, results) => {
+    const sql = "SELECT * FROM usuarios WHERE email = $1";
+    db.query(sql, [usuario], (err, result) => {
         if (err) {
-            console.error("Error SQL:", err);
+            console.error("=> ERROR SQL:", err);
             return res.status(500).json({ error: "Error interno" });
         }
 
-        if (results.length === 0) {
+        console.log("=> RESULTADO SQL:", result.rows);
+
+        if (result.rows.length === 0) {
             return res.status(404).json({ error: "Usuario no encontrado" });
         }
 
-        const user = results[0];
+        const user = result.rows[0];
 
-        if (user.password !== clave) {
-            return res.status(401).json({ error: "Clave incorrecta" });
+        console.log("=> Usuario encontrado:", user);
+
+        if (user.password === clave) {
+            return res.json({ mensaje: "Login exitoso", usuario: user });
         }
 
-        return res.json({ mensaje: "Login exitoso" });
+        return res.status(401).json({ error: "Clave incorrecta" });
     });
 });
 
