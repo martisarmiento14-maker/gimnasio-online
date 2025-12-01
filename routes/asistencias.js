@@ -97,20 +97,24 @@ router.post("/", async (req, res) => {
         }
 
         // 4) Registrar asistencia (con fecha + hora separadas)
-        if (seRegistra) {
-            const insertQuery = `
-                INSERT INTO asistencias (id_alumno, fecha, hora)
-                VALUES ($1, CURRENT_DATE, CURRENT_TIME)
-            `;
-            await db.query(insertQuery, [idAlumno]);
-
-            asistenciasSemanaFinal = asistenciasSemana + 1;
+        // 4) Insertar asistencia solo si seRegistra === true
+if (seRegistra) {
+    const sqlInsert = `
+        INSERT INTO asistencias (id_alumno, fecha, hora)
+        VALUES ($1, CURRENT_DATE, CURRENT_TIME)
+    `;
+    db.query(sqlInsert, [idAlumno], (err4) => {
+        if (err4) {
+            console.error("Error registrando asistencia:", err4);
+            return res.status(500).json({ error: "Error al registrar asistencia" });
         }
 
+        asistenciasSemanaFinal = asistenciasSemana + 1;
+
         return res.json({
-            se_registro: seRegistra,
+            se_registro: true,
             alumno: {
-                id_alumno: alumno.id,
+                id_alumno: alumno.id_alumno,
                 nombre: alumno.nombre,
                 apellido: alumno.apellido,
                 dni: alumno.dni,
@@ -129,6 +133,9 @@ router.post("/", async (req, res) => {
             alerta_cuota: alertaCuota,
             alerta_dias: alertaDias,
         });
+    });
+}
+
 
     } catch (err) {
         console.error("Error en asistencias:", err);
