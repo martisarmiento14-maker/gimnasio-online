@@ -1,14 +1,17 @@
 import express from "express";
 import db from "../database/db.js";
+// import bcrypt from "bcrypt";   ← BORRA esto si no usas bcrypt
 
 const router = express.Router();
 
+// LOGIN DEL ADMINISTRADOR
 router.post("/", (req, res) => {
     const { usuario, clave } = req.body;
 
     console.log("=> Datos recibidos:", usuario, clave);
 
     const sql = "SELECT * FROM usuarios WHERE email = $1";
+
     db.query(sql, [usuario], (err, result) => {
         if (err) {
             console.error("=> ERROR SQL:", err);
