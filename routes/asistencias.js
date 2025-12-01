@@ -2,12 +2,10 @@ import express from "express";
 const router = express.Router();
 import db from "../database/db.js";
 
-// -------------------------------
-// Obtener rango de semana actual
-// -------------------------------
+// Obtener lunes y domingo de la semana actual
 function getRangoSemanaActual() {
     const hoy = new Date();
-    const dia = hoy.getDay(); // 0 domingo, 1 lunes...
+    const dia = hoy.getDay(); // 0=domingo, 1=lunes
     const diffLunes = dia === 0 ? -6 : 1 - dia;
 
     const lunes = new Date(hoy);
@@ -21,37 +19,35 @@ function getRangoSemanaActual() {
     return { lunes, domingo };
 }
 
-// -------------------------------
 // POST /asistencias
-// Registrar asistencia por DNI
-// -------------------------------
 router.post("/", async (req, res) => {
     try {
         const { dni } = req.body;
+        if (!dni) return res.status(400).json({ error: "Debe enviar un DNI" });
 
-        if (!dni) {
-            return res.status(400).json({ error: "Debe enviar un DNI" });
-        }
-
-        // 1) Buscar Alumno
+        // Buscar alumno
         const alumnoRes = await db.query(
             "SELECT * FROM alumnos WHERE dni = $1",
             [dni]
         );
 
-        if (alumnoRes.rows.length === 0) {
+        if (alumnoRes.rows.length === 0)
             return res.status(404).json({ error: "Alumno no encontrado" });
-        }
 
         const alumno = alumnoRes.rows[0];
         const idAlumno = alumno.id;
-
-        // 2) Obtener límite semanal
         const limiteSemanal = alumno.dias_semana;
 
-        // 3) Buscar última cuota
+        // Armar texto de planes
+        const planesArr = [];
+        if (alumno.plan_eg) planesArr.push("Plan EG");
+        if (alumno.plan_personalizado) planesArr.push("Personalizado");
+        if (alumno.plan_running) planesArr.push("Running");
+        const textoPlanes = planesArr.join(" + ") || "-";
+
+        // Última cuota
         const cuotaRes = await db.query(
-            `SELECT *
+            `SELECT fecha_vencimiento
              FROM cuotas
              WHERE id_alumno = $1
              ORDER BY fecha_vencimiento DESC
@@ -59,64 +55,70 @@ router.post("/", async (req, res) => {
             [idAlumno]
         );
 
-        const cuota = cuotaRes.rows[0] || null;
-
-        let estadoCuota = null;
+        let cuota = cuotaRes.rows[0] || null;
         let alertaCuota = null;
 
         if (cuota) {
             const hoy = new Date();
             const vto = new Date(cuota.fecha_vencimiento);
-
-            if (vto < hoy) {
-                estadoCuota = "vencida";
-                alertaCuota = "La cuota está vencida. Deberías regularizar el pago.";
-            } else {
-                estadoCuota = "vigente";
-            }
+            if (vto < hoy) alertaCuota = "La cuota está vencida. Regularizar el pago.";
         }
 
-        // 4) Obtener rango semana
+        // Asistencias esta semana
         const { lunes, domingo } = getRangoSemanaActual();
 
-        // 5) Contar asistencias de esta semana
         const asistRes = await db.query(
-            `SELECT COUNT(*) AS total
-             FROM asistencias
+            `SELECT COUNT(*) FROM asistencias
              WHERE id_alumno = $1
              AND fecha BETWEEN $2 AND $3`,
             [idAlumno, lunes, domingo]
         );
 
-        const asistenciasSemana = Number(asistRes.rows[0].total);
+        const asistenciasSemana = Number(asistRes.rows[0].count);
+        let seRegistra = true;
+        let alertaDias = null;
 
-        // 6) Verificar límite semanal
+        // Exceso de días → no registrar
         if (limiteSemanal && asistenciasSemana >= limiteSemanal) {
-            return res.json({
-                se_registro: false,
-                mensaje: `Ya usaste tus ${limiteSemanal} días de entrenamiento esta semana.`,
-                asistencias_semana: asistenciasSemana,
-                alerta_cuota: alertaCuota
-            });
+            seRegistra = false;
+            alertaDias = `Ya usaste tus ${limiteSemanal} días esta semana.`;
         }
 
-        // 7) Registrar asistencia
-        await db.query(
-            `INSERT INTO asistencias (id_alumno, fecha, hora)
-            VALUES ($1, CURRENT_DATE, CURRENT_TIME)`,
-            [idAlumno]
-        );
+        // Registrar asistencia si corresponde
+        if (seRegistra) {
+            await db.query(
+                `INSERT INTO asistencias (id_alumno, fecha, hora)
+                 VALUES ($1, CURRENT_DATE, CURRENT_TIME)`,
+                [idAlumno]
+            );
+        }
 
+        // Respuesta final
         return res.json({
-            se_registro: true,
-            mensaje: "Asistencia registrada correctamente",
-            asistencias_semana: asistenciasSemana + 1,
-            alerta_cuota: alertaCuota
+            se_registro: seRegistra,
+            alumno: {
+                id_alumno: alumno.id,
+                nombre: alumno.nombre,
+                apellido: alumno.apellido,
+                dni: alumno.dni,
+                nivel: alumno.nivel,
+                equipo: alumno.equipo,
+                planes: textoPlanes,
+            },
+            cuota: cuota
+                ? { fecha_vencimiento: cuota.fecha_vencimiento }
+                : null,
+            limite_semanal: limiteSemanal,
+            asistencias_semana: seRegistra
+                ? asistenciasSemana + 1
+                : asistenciasSemana,
+            alerta_cuota: alertaCuota,
+            alerta_dias: alertaDias,
         });
 
     } catch (err) {
         console.error("ERROR ASISTENCIAS:", err);
-        return res.status(500).json({ error: "Error del servidor" });
+        res.status(500).json({ error: "Error del servidor" });
     }
 });
 
