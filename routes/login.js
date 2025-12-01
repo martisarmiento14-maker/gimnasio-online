@@ -1,39 +1,46 @@
 import express from "express";
-import db from "../database/db.js";
-// import bcrypt from "bcrypt";   ← BORRA esto si no usas bcrypt
-
 const router = express.Router();
+import db from "../database/db.js";
 
-// LOGIN DEL ADMINISTRADOR
-router.post("/", (req, res) => {
-    const { usuario, clave } = req.body;
+// LOGIN CON EMAIL Y PASSWORD
+router.post("/", async (req, res) => {
+    try {
+        const { usuario, clave } = req.body;
 
-    console.log("=> Datos recibidos:", usuario, clave);
-
-    const sql = "SELECT * FROM usuarios WHERE email = $1";
-
-    db.query(sql, [usuario], (err, result) => {
-        if (err) {
-            console.error("=> ERROR SQL:", err);
-            return res.status(500).json({ error: "Error interno" });
+        if (!usuario || !clave) {
+            return res.status(400).json({ ok: false, mensaje: "Faltan datos" });
         }
 
-        console.log("=> RESULTADO SQL:", result.rows);
+        // Buscar usuario por EMAIL
+        const sql = "SELECT * FROM usuarios WHERE email = $1 LIMIT 1";
+        const result = await db.query(sql, [usuario]);
 
         if (result.rows.length === 0) {
-            return res.status(404).json({ error: "Usuario no encontrado" });
+            return res.status(404).json({ ok: false, mensaje: "Usuario no encontrado" });
         }
 
         const user = result.rows[0];
 
-        console.log("=> Usuario encontrado:", user);
-
-        if (user.password === clave) {
-            return res.json({ mensaje: "Login exitoso", usuario: user });
+        // Comparar password
+        if (user.password !== clave) {
+            return res.status(401).json({ ok: false, mensaje: "Contraseña incorrecta" });
         }
 
-        return res.status(401).json({ error: "Clave incorrecta" });
-    });
+        // Login OK
+        return res.json({
+            ok: true,
+            mensaje: "Login exitoso",
+            usuario: {
+                id: user.id,
+                nombre: user.nombre,
+                email: user.email
+            }
+        });
+
+    } catch (error) {
+        console.error("Error en login:", error);
+        res.status(500).json({ ok: false, mensaje: "Error interno en el servidor" });
+    }
 });
 
 export default router;
