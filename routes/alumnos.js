@@ -1,29 +1,28 @@
-// routes/alumnos.js
 import express from "express";
 import pool from "../database/db.js";
 
 const router = express.Router();
 
-/* =============================
-   1) OBTENER TODOS LOS ALUMNOS
-   ============================= */
+/* ============================================
+   🔹 GET — OBTENER TODOS LOS ALUMNOS
+   ============================================ */
 router.get("/", async (req, res) => {
     try {
         const result = await pool.query("SELECT * FROM alumnos ORDER BY id ASC");
         res.json(result.rows);
     } catch (error) {
-        console.error("ERROR GET /alumnos:", error);
-        res.status(500).json({ error: "Error al obtener alumnos" });
+        console.error("ERROR GET ALUMNOS:", error);
+        res.status(500).json({ error: "Error obteniendo alumnos" });
     }
 });
 
-/* =============================
-   2) OBTENER ALUMNO POR DNI
-   ============================= */
-router.get("/dni/:dni", async (req, res) => {
+/* ============================================
+   🔹 GET — OBTENER ALUMNO POR ID
+   ============================================ */
+router.get("/:id", async (req, res) => {
     try {
-        const { dni } = req.params;
-        const result = await pool.query("SELECT * FROM alumnos WHERE dni = $1", [dni]);
+        const { id } = req.params;
+        const result = await pool.query("SELECT * FROM alumnos WHERE id = $1", [id]);
 
         if (result.rows.length === 0) {
             return res.status(404).json({ error: "Alumno no encontrado" });
@@ -31,124 +30,203 @@ router.get("/dni/:dni", async (req, res) => {
 
         res.json(result.rows[0]);
     } catch (error) {
-        console.error("ERROR GET /alumnos/dni:", error);
-        res.status(500).json({ error: "Error al buscar alumno" });
+        console.error("ERROR GET ALUMNO ID:", error);
+        res.status(500).json({ error: "Error obteniendo alumno" });
     }
 });
 
-/* =============================
-   3) CREAR ALUMNO
-   ============================= */
+/* ============================================
+   🔹 HELPER — CALCULAR DÍAS SEGÚN PLANES
+   ============================================ */
+function calcularDias(plan_eg, plan_personalizado, plan_running, dias_eg_o_pers) {
+    let total = 0;
+
+    if (plan_eg) total += dias_eg_o_pers;
+    if (plan_personalizado) total += dias_eg_o_pers;
+    if (plan_running) total += 2;
+
+    return total;
+}
+
+/* ============================================
+   🔹 POST — CREAR ALUMNO
+   ============================================ */
 router.post("/", async (req, res) => {
     try {
         const {
-            nombre, apellido, dni, telefono, nivel,
-            equipo, plan_eg, plan_personalizado, plan_running,
-            dias_semana, fecha_vencimiento
+            nombre,
+            apellido,
+            dni,
+            telefono,
+            nivel,
+            equipo,
+            plan_eg,
+            plan_personalizado,
+            plan_running,
+            dias_semana,
+            fecha_vencimiento,
+            activo
         } = req.body;
 
-        const sql = `
-            INSERT INTO alumnos
-            (nombre, apellido, dni, telefono, nivel, equipo, plan_eg, plan_personalizado, plan_running, dias_semana, fecha_vencimiento, activo)
-            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,true)
+        // Validación combinaciones
+        if (plan_eg && plan_personalizado) {
+            return res.status(400).json({ error: "EG y Personalizado no pueden combinarse" });
+        }
+
+        const query = `
+            INSERT INTO alumnos (
+                nombre, apellido, dni, telefono, nivel, equipo,
+                plan_eg, plan_personalizado, plan_running,
+                dias_semana, fecha_vencimiento, activo
+            )
+            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
             RETURNING *;
         `;
 
         const values = [
-            nombre, apellido, dni, telefono, nivel,
-            equipo, plan_eg, plan_personalizado, plan_running,
-            dias_semana, fecha_vencimiento
+            nombre,
+            apellido,
+            dni,
+            telefono,
+            nivel,
+            equipo,
+            plan_eg,
+            plan_personalizado,
+            plan_running,
+            dias_semana,
+            fecha_vencimiento,
+            activo
         ];
 
-        const result = await pool.query(sql, values);
-        res.json(result.rows[0]);
+        const result = await pool.query(query, values);
 
+        res.json(result.rows[0]);
     } catch (error) {
-        console.error("ERROR POST /alumnos:", error);
-        res.status(500).json({ error: "Error al crear alumno" });
+        console.error("ERROR CREAR ALUMNO:", error);
+        res.status(500).json({ error: "Error creando alumno" });
     }
 });
 
-/* =============================
-   4) ACTUALIZAR ALUMNO
-   ============================= */
+/* ============================================
+   🔹 PUT — EDITAR ALUMNO
+   ============================================ */
 router.put("/:id", async (req, res) => {
     try {
         const { id } = req.params;
+
         const {
-            nombre, apellido, dni, telefono, nivel,
-            plan_eg, plan_personalizado, plan_running,
-            dias_semana, fecha_vencimiento
+            nombre,
+            apellido,
+            dni,
+            telefono,
+            nivel,
+            equipo,
+            plan_eg,
+            plan_personalizado,
+            plan_running,
+            dias_semana,
+            fecha_vencimiento,
+            activo
         } = req.body;
 
-        const sql = `
-            UPDATE alumnos
-            SET nombre=$1, apellido=$2, dni=$3, telefono=$4, nivel=$5,
-                plan_eg=$6, plan_personalizado=$7, plan_running=$8,
-                dias_semana=$9, fecha_vencimiento=$10
-            WHERE id=$11
+        // Validación combinaciones
+        if (plan_eg && plan_personalizado) {
+            return res.status(400).json({ error: "EG y Personalizado no pueden combinarse" });
+        }
+
+        const query = `
+            UPDATE alumnos SET
+                nombre = $1,
+                apellido = $2,
+                dni = $3,
+                telefono = $4,
+                nivel = $5,
+                equipo = $6,
+                plan_eg = $7,
+                plan_personalizado = $8,
+                plan_running = $9,
+                dias_semana = $10,
+                fecha_vencimiento = $11,
+                activo = $12
+            WHERE id = $13
             RETURNING *;
         `;
 
-        const result = await pool.query(sql, [
-            nombre, apellido, dni, telefono, nivel,
-            plan_eg, plan_personalizado, plan_running,
-            dias_semana, fecha_vencimiento, id
-        ]);
+        const values = [
+            nombre,
+            apellido,
+            dni,
+            telefono,
+            nivel,
+            equipo,
+            plan_eg,
+            plan_personalizado,
+            plan_running,
+            dias_semana,
+            fecha_vencimiento,
+            activo,
+            id
+        ];
+
+        const result = await pool.query(query, values);
 
         res.json(result.rows[0]);
-
     } catch (error) {
-        console.error("ERROR PUT /alumnos:", error);
-        res.status(500).json({ error: "Error al actualizar alumno" });
+        console.error("ERROR EDITANDO ALUMNO:", error);
+        res.status(500).json({ error: "Error editando alumno" });
     }
 });
 
-/* =============================
-   5) BORRAR ALUMNO
-   ============================= */
+/* ============================================
+   🔹 PUT — RENOVAR CUOTA (+1 MES)
+   ============================================ */
+router.put("/:id/renovar", async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        // Obtener alumno
+        const alumno = await pool.query("SELECT * FROM alumnos WHERE id = $1", [id]);
+
+        if (alumno.rows.length === 0) {
+            return res.status(404).json({ error: "Alumno no encontrado" });
+        }
+
+        const fechaActual = new Date();
+        const fechaVenc = new Date(alumno.rows[0].fecha_vencimiento);
+
+        let nuevaFecha;
+
+        if (fechaVenc >= fechaActual) {
+            nuevaFecha = new Date(fechaVenc.setMonth(fechaVenc.getMonth() + 1));
+        } else {
+            nuevaFecha = new Date(fechaActual.setMonth(fechaActual.getMonth() + 1));
+        }
+
+        const result = await pool.query(
+            "UPDATE alumnos SET fecha_vencimiento = $1 WHERE id = $2 RETURNING *",
+            [nuevaFecha, id]
+        );
+
+        res.json(result.rows[0]);
+    } catch (error) {
+        console.error("ERROR RENOVAR CUOTA:", error);
+        res.status(500).json({ error: "Error renovando cuota" });
+    }
+});
+
+/* ============================================
+   🔹 DELETE — ELIMINAR ALUMNO
+   ============================================ */
 router.delete("/:id", async (req, res) => {
     try {
         const { id } = req.params;
+
         await pool.query("DELETE FROM alumnos WHERE id = $1", [id]);
-        res.json({ message: "Alumno eliminado" });
-    } catch (error) {
-        console.error("ERROR DELETE /alumnos:", error);
-        res.status(500).json({ error: "Error al borrar alumno" });
-    }
-});
 
-/* =============================
-   6) LISTAR VENCIDOS
-   ============================= */
-router.get("/vencidos", async (req, res) => {
-    try {
-        const result = await pool.query(`
-            SELECT * FROM alumnos
-            WHERE fecha_vencimiento < CURRENT_DATE
-            AND activo = true
-        `);
-        res.json(result.rows);
+        res.json({ message: "Alumno eliminado correctamente" });
     } catch (error) {
-        console.error("ERROR GET /alumnos/vencidos:", error);
-        res.status(500).json({ error: "Error al obtener vencidos" });
-    }
-});
-
-/* =============================
-   7) LISTAR POR VENCER (7 días)
-   ============================= */
-router.get("/por-vencer", async (req, res) => {
-    try {
-        const result = await pool.query(`
-            SELECT * FROM alumnos
-            WHERE fecha_vencimiento BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '7 days'
-            AND activo = true
-        `);
-        res.json(result.rows);
-    } catch (error) {
-        console.error("ERROR GET /alumnos/por-vencer:", error);
-        res.status(500).json({ error: "Error al obtener por vencer" });
+        console.error("ERROR ELIMINAR ALUMNO:", error);
+        res.status(500).json({ error: "Error eliminando alumno" });
     }
 });
 
