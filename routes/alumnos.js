@@ -59,12 +59,13 @@ router.get("/:id/detalle", async (req, res) => {
 // =====================================
 // POST — Crear alumno nuevo
 // =====================================
+// POST — Crear alumno
 router.post("/", async (req, res) => {
     try {
         const {
             nombre,
             apellido,
-            dni,             // 👈 AHORA TOMAMOS DNI
+            dni,
             edad,
             email,
             telefono,
@@ -72,29 +73,14 @@ router.post("/", async (req, res) => {
             plan_eg,
             plan_personalizado,
             plan_running,
-            dias_semana
+            dias_semana,
+            fecha_vencimiento   // 👈 VIENE DIRECTO
         } = req.body;
 
         const equipo = await asignarEquipoAutomatico();
 
-        function sumarUnMes(fecha) {
-            const f = new Date(fecha + "T00:00:00");
-            f.setMonth(f.getMonth() + 1);
-            return f.toISOString().split("T")[0]; 
-        }
-
-// si viene desde el formulario (CREAR)
-        let fecha_vencimiento = req.body.fecha_vencimiento;
-
-// si NO viene (por ejemplo una API externa)
-        if (!fecha_vencimiento) {
-            const hoy = new Date();
-            const yyyy = hoy.getFullYear();
-            const mm = String(hoy.getMonth() + 1).padStart(2, "0");
-            const dd = String(hoy.getDate()).padStart(2, "0");
-            fecha_vencimiento = sumarUnMes(`${yyyy}-${mm}-${dd}`);
-        }
-
+        // ❗ FORZAMOS A NO TOCAR LA FECHA
+        const fechaFinal = fecha_vencimiento;  
 
         const sql = `
             INSERT INTO alumnos
@@ -108,7 +94,7 @@ router.post("/", async (req, res) => {
         const result = await pool.query(sql, [
             nombre,
             apellido,
-            dni,                 // 👈 PARAM 3
+            dni,
             edad,
             email,
             telefono,
@@ -118,7 +104,7 @@ router.post("/", async (req, res) => {
             plan_personalizado,
             plan_running,
             dias_semana,
-            fecha_vencimiento
+            fechaFinal
         ]);
 
         res.json(result.rows[0]);
@@ -131,12 +117,13 @@ router.post("/", async (req, res) => {
 // =====================================
 // PUT — EDITAR alumno
 // =====================================
+// PUT — EDITAR alumno
 router.put("/:id", async (req, res) => {
     try {
         const {
             nombre,
             apellido,
-            dni,                 // 👈 AGREGAMOS DNI
+            dni,
             edad,
             email,
             telefono,
@@ -145,7 +132,7 @@ router.put("/:id", async (req, res) => {
             plan_personalizado,
             plan_running,
             dias_semana,
-            fecha_vencimiento
+            fecha_vencimiento   // 👈 USAMOS ESTA FECHA DIRECTA
         } = req.body;
 
         const sql = `
@@ -169,7 +156,7 @@ router.put("/:id", async (req, res) => {
         const result = await pool.query(sql, [
             nombre,
             apellido,
-            dni,                 // 👈 PARAM 3
+            dni,
             edad,
             email,
             telefono,
@@ -178,7 +165,7 @@ router.put("/:id", async (req, res) => {
             plan_personalizado,
             plan_running,
             dias_semana,
-            fecha_vencimiento,
+            fecha_vencimiento,  // 👈 DIRECTO
             req.params.id
         ]);
 
