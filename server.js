@@ -1,5 +1,7 @@
 // server.js
 import express from "express";
+console.log("Backend actualizado para redeploy");
+
 import cors from "cors";
 import dotenv from "dotenv";
 dotenv.config();
