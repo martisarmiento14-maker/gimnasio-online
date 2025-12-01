@@ -152,6 +152,35 @@ router.put("/:id", async (req, res) => {
         res.status(500).json({ error: "Error al editar alumno" });
     }
 });
+// ACTIVAR ALUMNO
+router.put("/:id/activar", async (req, res) => {
+    await pool.query(`UPDATE alumnos SET activo = 1 WHERE id = $1`, [req.params.id]);
+    res.json({ mensaje: "Alumno activado" });
+});
+
+// DESACTIVAR ALUMNO
+router.put("/:id/desactivar", async (req, res) => {
+    await pool.query(`UPDATE alumnos SET activo = 0 WHERE id = $1`, [req.params.id]);
+    res.json({ mensaje: "Alumno desactivado" });
+});
+
+// CAMBIAR EQUIPO
+router.put("/:id/equipo", async (req, res) => {
+    const { equipo } = req.body;
+    await pool.query(`UPDATE alumnos SET equipo = $1 WHERE id = $2`, [equipo, req.params.id]);
+    res.json({ mensaje: "Equipo actualizado" });
+});
+
+// ELIMINAR ALUMNO
+router.delete("/:id", async (req, res) => {
+    try {
+        await pool.query("DELETE FROM alumnos WHERE id = $1", [req.params.id]);
+        res.json({ mensaje: "Alumno eliminado" });
+    } catch (err) {
+        res.status(500).json({ error: "Error al eliminar alumno" });
+    }
+});
+
 
 export default router;
 
