@@ -53,58 +53,48 @@ function calcularDias(plan_eg, plan_personalizado, plan_running, dias_eg_o_pers)
    ============================================ */
 router.post("/", async (req, res) => {
     try {
-        const {
+        // --- ASIGNACIÓN AUTOMÁTICA DE EQUIPO ---
+        const countMorado = await pool.query("SELECT COUNT(*) FROM alumnos WHERE equipo = 'morado'");
+        const countBlanco = await pool.query("SELECT COUNT(*) FROM alumnos WHERE equipo = 'blanco'");
+
+        const morado = parseInt(countMorado.rows[0].count);
+        const blanco = parseInt(countBlanco.rows[0].count);
+
+        let equipoAsignado = morado <= blanco ? "morado" : "blanco";
+
+        // ASIGNAMOS ANTES DE INSERTAR
+        req.body.equipo = equipoAsignado;
+
+        // AHORA ARMAMOS EL INSERT
+        const { nombre, apellido, dni, telefono, nivel, fecha_vencimiento,
+                plan_eg, plan_personalizado, plan_running, dias_semana, dias_eg_pers } = req.body;
+
+        const query = `
+            INSERT INTO alumnos
+            (nombre, apellido, dni, telefono, nivel, equipo, fecha_vencimiento,
+            plan_eg, plan_personalizado, plan_running, dias_semana, dias_eg_pers)
+            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+            RETURNING *`;
+
+        const values = [
             nombre,
             apellido,
             dni,
             telefono,
             nivel,
-            equipo,
+            equipoAsignado,   //  <---- YA ESTÁ LISTO
+            fecha_vencimiento,
             plan_eg,
             plan_personalizado,
             plan_running,
             dias_semana,
-            dias_eg_pers,
-            fecha_vencimiento,
-            activo
-        } = req.body;
-
-        // Validación combinaciones
-        if (plan_eg && plan_personalizado) {
-            return res.status(400).json({ error: "EG y Personalizado no pueden combinarse" });
-        }
-
-        const query = `
-            INSERT INTO alumnos (
-                nombre, apellido, telefono, nivel, equipo,
-                plan_eg, plan_personalizado, plan_running,
-                dias_semana, dias_eg_pers,
-                fecha_vencimiento, activo, dni
-            )
-            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
-            RETURNING *;
-        `;
-
-
-        const values = [
-            nombre,
-            apellido,
-            telefono,
-            nivel,
-            equipo,
-            plan_eg,
-            plan_personalizado,
-            plan_running,
-            dias_semana,
-            dias_eg_pers,       // <--- AGREGADO
-            fecha_vencimiento,
-            activo,
-            dni                 // <--- AL FINAL
+            dias_eg_pers
         ];
 
         const result = await pool.query(query, values);
 
         res.json(result.rows[0]);
+
     } catch (error) {
         console.error("ERROR CREAR ALUMNO:", error);
         res.status(500).json({ error: "Error creando alumno" });
