@@ -151,4 +151,23 @@ router.get("/inactivos", async (req, res) => {
     }
 });
 
+// ELIMINAR ALUMNO FORZADO (BORRA ASISTENCIAS + ALUMNO)
+router.delete("/forzar/:id", async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        // primero borrar asistencias
+        await pool.query("DELETE FROM asistencias WHERE id_alumno = $1", [id]);
+
+        // luego borrar alumno
+        const result = await pool.query("DELETE FROM alumnos WHERE id = $1 RETURNING *", [id]);
+
+        res.json({ success: true, alumno: result.rows[0] });
+
+    } catch (error) {
+        console.error("ERROR BORRADO FORZADO:", error);
+        res.status(500).json({ error: "Error borrando alumno de manera forzada" });
+    }
+});
+
 export default router;
