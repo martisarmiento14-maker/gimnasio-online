@@ -16,10 +16,15 @@ const app = express();
 
 // CORS CONFIGURADO CORRECTAMENTE
 app.use(cors({
-    origin: "https://gimnasio-online-frontend.onrender.com",
+    origin: [
+        "https://gimnasio-online-frontend.onrender.com",
+        "https://gimnasio-online-1.onrender.com",
+        "http://localhost:3000"
+    ],
     methods: "GET,POST,PUT,DELETE",
-    allowedHeaders: "Content-Type, Authorization"
+    credentials: true
 }));
+
 
 app.use(express.json());
 

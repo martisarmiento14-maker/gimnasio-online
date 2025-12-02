@@ -64,6 +64,7 @@ router.post("/", async (req, res) => {
             plan_personalizado,
             plan_running,
             dias_semana,
+            dias_eg_pers,
             fecha_vencimiento,
             activo
         } = req.body;
@@ -128,6 +129,7 @@ router.put("/:id", async (req, res) => {
             plan_personalizado,
             plan_running,
             dias_semana,
+            dias_eg_pers,
             fecha_vencimiento,
             activo
         } = req.body;
