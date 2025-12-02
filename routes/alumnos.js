@@ -101,82 +101,54 @@ router.post("/", async (req, res) => {
     }
 });
 
-/* ============================================
-   🔹 PUT — EDITAR ALUMNO
-   ============================================ */
 router.put("/:id", async (req, res) => {
     try {
-        const { id } = req.params;
+        const id = req.params.id;
 
-        const {
-            nombre,
-            apellido,
-            dni,
-            telefono,
-            nivel,
-            equipo,
-            plan_eg,
-            plan_personalizado,
-            plan_running,
-            dias_semana,
-            dias_eg_pers,
-            fecha_vencimiento,
-            activo
-        } = req.body;
+        // obtener el equipo ya guardado
+        const actual = await pool.query("SELECT equipo FROM alumnos WHERE id = $1", [id]);
+        const equipoActual = actual.rows[0].equipo;
 
-        // Validación combinaciones
-        if (plan_eg && plan_personalizado) {
-            return res.status(400).json({ error: "EG y Personalizado no pueden combinarse" });
-        }
+        const { nombre, apellido, dni, telefono, nivel, fecha_vencimiento,
+                plan_eg, plan_personalizado, plan_running, dias_semana, dias_eg_pers } = req.body;
 
         const query = `
             UPDATE alumnos SET
-                nombre = $1,
-                apellido = $2,
-                telefono = $3,
-                nivel = $4,
-                equipo = $5,
-                plan_eg = $6,
-                plan_personalizado = $7,
-                plan_running = $8,
-                dias_semana = $9,
-                dias_eg_pers = $10,
-                fecha_vencimiento = $11,
-                activo = $12,
-                dni = $13
-            WHERE id = $14
-            RETURNING *;
+                nombre=$1, apellido=$2, dni=$3, telefono=$4,
+                nivel=$5, equipo=$6, fecha_vencimiento=$7,
+                plan_eg=$8, plan_personalizado=$9, plan_running=$10,
+                dias_semana=$11, dias_eg_pers=$12
+            WHERE id = $13
+            RETURNING *
         `;
-
 
         const values = [
             nombre,
             apellido,
+            dni,
             telefono,
             nivel,
-            equipo,
+            equipoActual,   // <-- mantenemos el equipo
+            fecha_vencimiento,
             plan_eg,
             plan_personalizado,
             plan_running,
             dias_semana,
             dias_eg_pers,
-            fecha_vencimiento,
-            activo,
-            dni,
             id
         ];
 
         const result = await pool.query(query, values);
-
         res.json(result.rows[0]);
+
     } catch (error) {
-        console.error("ERROR EDITANDO ALUMNO:", error);
-        res.status(500).json({ error: "Error editando alumno" });
+        console.log("ERROR EDITANDO:", error);
+        res.status(500).json({ error: "error" });
     }
 });
 
 /* ============================================
-   🔹 PUT — RENOVAR CUOTA (+1 MES)
+🔹 PUT — RENOVAR CUOTA (+1 MES)
    ============================================ */
 router.put("/:id/renovar", async (req, res) => {
     try {
