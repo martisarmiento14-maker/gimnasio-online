@@ -75,18 +75,19 @@ router.post("/", async (req, res) => {
 
         const query = `
             INSERT INTO alumnos (
-                nombre, apellido, dni, telefono, nivel, equipo,
+                nombre, apellido, telefono, nivel, equipo,
                 plan_eg, plan_personalizado, plan_running,
-                dias_semana, fecha_vencimiento, activo
+                dias_semana, dias_eg_pers,
+                fecha_vencimiento, activo, dni
             )
-            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
             RETURNING *;
         `;
+
 
         const values = [
             nombre,
             apellido,
-            dni,
             telefono,
             nivel,
             equipo,
@@ -94,8 +95,10 @@ router.post("/", async (req, res) => {
             plan_personalizado,
             plan_running,
             dias_semana,
+            dias_eg_pers,       // <--- AGREGADO
             fecha_vencimiento,
-            activo
+            activo,
+            dni                 // <--- AL FINAL
         ];
 
         const result = await pool.query(query, values);
@@ -138,24 +141,25 @@ router.put("/:id", async (req, res) => {
             UPDATE alumnos SET
                 nombre = $1,
                 apellido = $2,
-                dni = $3,
-                telefono = $4,
-                nivel = $5,
-                equipo = $6,
-                plan_eg = $7,
-                plan_personalizado = $8,
-                plan_running = $9,
-                dias_semana = $10,
+                telefono = $3,
+                nivel = $4,
+                equipo = $5,
+                plan_eg = $6,
+                plan_personalizado = $7,
+                plan_running = $8,
+                dias_semana = $9,
+                dias_eg_pers = $10,
                 fecha_vencimiento = $11,
-                activo = $12
-            WHERE id = $13
+                activo = $12,
+                dni = $13
+            WHERE id = $14
             RETURNING *;
         `;
+
 
         const values = [
             nombre,
             apellido,
-            dni,
             telefono,
             nivel,
             equipo,
@@ -163,8 +167,10 @@ router.put("/:id", async (req, res) => {
             plan_personalizado,
             plan_running,
             dias_semana,
+            dias_eg_pers,
             fecha_vencimiento,
             activo,
+            dni,
             id
         ];
 
