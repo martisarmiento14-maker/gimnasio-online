@@ -55,20 +55,83 @@ router.post("/", async (req, res) => {
             dias_eg_pers,
         } = req.body;
 
-        // ASIGNACIÓN AUTOMÁTICA DE EQUIPO
-        const countMorado = await pool.query(
-            "SELECT COUNT(*) FROM alumnos WHERE equipo = 'morado'"
-        );
-        const countBlanco = await pool.query(
-            "SELECT COUNT(*) FROM alumnos WHERE equipo = 'blanco'"
-        );
+        // =======================================================
+        //   📌 ASIGNACIÓN DE EQUIPO (LÓGICA DEFINITIVA)
+        // =======================================================
 
-        const morado = parseInt(countMorado.rows[0].count);
-        const blanco = parseInt(countBlanco.rows[0].count);
+        // 1️⃣ TOTAL DE ALUMNOS
+        const totalAlumnos = await pool.query("SELECT COUNT(*) FROM alumnos");
+        const total = Number(totalAlumnos.rows[0].count);
 
-        const equipoAsignado = morado <= blanco ? "morado" : "blanco";
+        let equipoAsignado = "morado"; // default
 
-        // ❗ FIX: activo debe ser INTEGER (1), NO boolean
+        // Alumno #1 → Morado
+        if (total === 0) {
+            equipoAsignado = "morado";
+        }
+        // Alumno #2 → Blanco
+        else if (total === 1) {
+            equipoAsignado = "blanco";
+        }
+
+        // 🔥 A partir del alumno Nº3 →
+        else {
+            const nivelAlumno = nivel; // principiante / basico / experto
+
+            // 2️⃣ Comparar cantidad del nivel EN CADA EQUIPO
+            const countMoradoNivel = await pool.query(
+                "SELECT COUNT(*) FROM alumnos WHERE equipo = 'morado' AND nivel = $1",
+                [nivelAlumno]
+            );
+            const countBlancoNivel = await pool.query(
+                "SELECT COUNT(*) FROM alumnos WHERE equipo = 'blanco' AND nivel = $1",
+                [nivelAlumno]
+            );
+
+            const moradoNivel = Number(countMoradoNivel.rows[0].count);
+            const blancoNivel = Number(countBlancoNivel.rows[0].count);
+
+            // 2A) Prioridad: equipo con MENOS del mismo nivel
+            if (moradoNivel < blancoNivel) {
+                equipoAsignado = "morado";
+            } else if (blancoNivel < moradoNivel) {
+                equipoAsignado = "blanco";
+            }
+
+            // 3️⃣ Si empatan en nivel → mirar TOTAL
+            else {
+                const countMoradoTotal = await pool.query(
+                    "SELECT COUNT(*) FROM alumnos WHERE equipo = 'morado'"
+                );
+                const countBlancoTotal = await pool.query(
+                    "SELECT COUNT(*) FROM alumnos WHERE equipo = 'blanco'"
+                );
+
+                const moradoTotal = Number(countMoradoTotal.rows[0].count);
+                const blancoTotal = Number(countBlancoTotal.rows[0].count);
+
+                if (moradoTotal < blancoTotal) {
+                    equipoAsignado = "morado";
+                } else if (blancoTotal < moradoTotal) {
+                    equipoAsignado = "blanco";
+                }
+
+                // 4️⃣ Si también empatan → alternado POR NIVEL
+                else {
+                    const countNivel = await pool.query(
+                        "SELECT COUNT(*) FROM alumnos WHERE nivel = $1",
+                        [nivelAlumno]
+                    );
+
+                    const cantidadNivel = Number(countNivel.rows[0].count);
+
+                    equipoAsignado = (cantidadNivel % 2 === 0) ? "morado" : "blanco";
+                }
+            }
+        }
+
+        // =======================================================
+
         const query = `
             INSERT INTO alumnos 
             (nombre, apellido, dni, telefono, nivel, equipo, 
