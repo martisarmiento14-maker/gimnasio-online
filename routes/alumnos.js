@@ -1,6 +1,7 @@
-const express = require("express");
+import express from "express";
+import pool from "../database/db.js";
+
 const router = express.Router();
-const pool = require("../database/db");
 
 // ==========================
 //  GET - TODOS LOS ALUMNOS
@@ -54,9 +55,7 @@ router.post("/", async (req, res) => {
             dias_eg_pers,
         } = req.body;
 
-        // ==========================================
-        //  🔥 ASIGNACIÓN AUTOMÁTICA DE EQUIPO
-        // ==========================================
+        // ASIGNACIÓN AUTOMÁTICA DE EQUIPO
         const countMorado = await pool.query(
             "SELECT COUNT(*) FROM alumnos WHERE equipo = 'morado'"
         );
@@ -64,14 +63,11 @@ router.post("/", async (req, res) => {
             "SELECT COUNT(*) FROM alumnos WHERE equipo = 'blanco'"
         );
 
-        let morado = parseInt(countMorado.rows[0].count);
-        let blanco = parseInt(countBlanco.rows[0].count);
+        const morado = parseInt(countMorado.rows[0].count);
+        const blanco = parseInt(countBlanco.rows[0].count);
 
         const equipoAsignado = morado <= blanco ? "morado" : "blanco";
 
-        // ==========================================
-        //  INSERT CON EQUIPO INCLUIDO
-        // ==========================================
         const query = `
             INSERT INTO alumnos 
             (nombre, apellido, dni, telefono, nivel, equipo, 
@@ -99,8 +95,8 @@ router.post("/", async (req, res) => {
         ];
 
         const result = await pool.query(query, values);
-
         res.json(result.rows[0]);
+
     } catch (error) {
         console.error("ERROR CREAR ALUMNO:", error);
         res.status(500).json({ error: "Error creando alumno" });
@@ -159,8 +155,8 @@ router.put("/:id", async (req, res) => {
         ];
 
         const result = await pool.query(query, values);
-
         res.json(result.rows[0]);
+
     } catch (error) {
         console.error("ERROR EDITAR ALUMNO:", error);
         res.status(500).json({ error: "Error actualizando alumno" });
