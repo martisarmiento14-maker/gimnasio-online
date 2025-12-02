@@ -24,7 +24,7 @@ router.put("/:id/activar", async (req, res) => {
     try {
         const { id } = req.params;
 
-        const query = "UPDATE alumnos SET activo = true WHERE id = $1 RETURNING *";
+        const query = "UPDATE alumnos SET activo = 1 WHERE id = $1 RETURNING *";
         const result = await db.query(query, [id]);
 
         res.json({ message: "Alumno activado", alumno: result.rows[0] });
@@ -34,6 +34,7 @@ router.put("/:id/activar", async (req, res) => {
     }
 });
 
+
 /* ===========================================
 PUT — DESACTIVAR ALUMNO
 =========================================== */
@@ -41,7 +42,7 @@ router.put("/:id/desactivar", async (req, res) => {
     try {
         const { id } = req.params;
 
-        const query = "UPDATE alumnos SET activo = false WHERE id = $1 RETURNING *";
+        const query = "UPDATE alumnos SET activo = 0 WHERE id = $1 RETURNING *";
         const result = await db.query(query, [id]);
 
         res.json({ message: "Alumno desactivado", alumno: result.rows[0] });
@@ -77,9 +78,10 @@ router.delete("/:id", async (req, res) => {
     try {
         const { id } = req.params;
 
-        // También borra asistencias del alumno
-        await db.query("DELETE FROM asistencias WHERE alumno_id = $1", [id]);
+        // Borrar asistencias relacionadas
+        await db.query("DELETE FROM asistencias WHERE id_alumno = $1", [id]);
 
+        // Borrar el alumno
         const query = "DELETE FROM alumnos WHERE id = $1 RETURNING *";
         const result = await db.query(query, [id]);
 
@@ -90,5 +92,6 @@ router.delete("/:id", async (req, res) => {
         res.status(500).json({ error: "Error al borrar alumno" });
     }
 });
+
 
 export default router;
