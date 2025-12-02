@@ -3,46 +3,44 @@ import pool from "../database/db.js";
 
 const router = express.Router();
 
-/* =========================================================
-   POST — REGISTRAR ASISTENCIA AUTOMÁTICAMENTE POR DNI
-   ========================================================= */
+/* =====================================================
+   REGISTRAR ASISTENCIA (BACKEND DEFINITIVO)
+   ===================================================== */
 router.post("/", async (req, res) => {
     try {
         const { dni } = req.body;
 
-        if (!dni) {
-            return res.status(400).json({ error: "Falta el DNI" });
-        }
+        if (!dni) return res.status(400).json({ error: "Faltó el DNI" });
 
-        // 1️⃣ BUSCAR ALUMNO
+        // 1) Buscar alumno activo por DNI
         const alumnoQuery = await pool.query(
-            "SELECT * FROM alumnos WHERE dni = $1",
+            "SELECT * FROM alumnos WHERE dni = $1 AND activo = 1",
             [dni]
         );
 
         if (alumnoQuery.rows.length === 0) {
-            return res.status(404).json({ error: "Alumno no encontrado" });
+            return res.status(404).json({ error: "No existe un alumno activo con ese DNI" });
         }
 
         const alumno = alumnoQuery.rows[0];
 
-        // FORMAR LISTA DE PLANES PARA MOSTRAR
+        // 2) Lógica de planes (para mostrar en frontend)
         let planes = [];
         if (alumno.plan_eg) planes.push("EG");
         if (alumno.plan_personalizado) planes.push("Personalizado");
         if (alumno.plan_running) planes.push("Running");
 
-        alumno.planes = planes.length ? planes.join(" - ") : "Sin plan";
+        alumno.planes = planes.length ? planes.join(" + ") : "Sin plan";
 
-        // 2️⃣ VERIFICAR VENCIMIENTO CUOTA
+        // 3) Verificar vencimiento
         const hoy = new Date();
         const fechaVenc = new Date(alumno.fecha_vencimiento);
         const vencido = fechaVenc < hoy;
 
-        // 3️⃣ CONTAR ASISTENCIAS DE LA SEMANA
-        const asistQuery = await pool.query(
+        // 4) Cantidad de asistencias de la semana
+        const asistenciasSemanaQuery = await pool.query(
             `
-            SELECT COUNT(*) AS total
+            SELECT COUNT(*) 
             FROM asistencias
             WHERE id_alumno = $1
             AND fecha >= date_trunc('week', CURRENT_DATE)
@@ -50,40 +48,64 @@ router.post("/", async (req, res) => {
             [alumno.id]
         );
 
-        const asistenciasSemana = Number(asistQuery.rows[0].total);
-        const limite = alumno.dias_semana ?? 0;
+        const asistenciasSemana = parseInt(asistenciasSemanaQuery.rows[0].count);
 
-        // 4️⃣ BLOQUEAR SI SUPERÓ EL LÍMITE SEMANAL
-        if (limite > 0 && asistenciasSemana >= limite) {
+        // 5) Comprobar si YA REGISTRÓ HOY (evita que duplique)
+        const hoyAsistencia = await pool.query(
+            `
+            SELECT 1 
+            FROM asistencias
+            WHERE id_alumno = $1
+            AND fecha = CURRENT_DATE
+            `,
+            [alumno.id]
+        );
+
+        const yaRegistroHoy = hoyAsistencia.rows.length > 0;
+
+        // 6) Caso: ya alcanzó su límite semanal
+        if (alumno.dias_semana > 0 && asistenciasSemana >= alumno.dias_semana && !yaRegistroHoy) {
             return res.json({
                 alumno,
                 asistencias_semana: asistenciasSemana,
-                limite_semanal: limite,
-                alerta_dias: "❗ Ya llegaste a tu límite semanal",
-                alerta_cuota: null,
-                se_registro: false
+                limite_semanal: alumno.dias_semana,
+                se_registro: false,
+                alerta_dias: "❗ Ya agotaste tus días de entrenamiento esta semana",
+                alerta_cuota: vencido ? "⚠ Cuota vencida" : null
             });
         }
 
-        // 5️⃣ REGISTRAR ASISTENCIA AUTOMÁTICAMENTE
+        // 7) Si ya pasó hoy → NO registrar de nuevo
+        if (yaRegistroHoy) {
+            return res.json({
+                alumno,
+                asistencias_semana: asistenciasSemana,
+                limite_semanal: alumno.dias_semana,
+                se_registro: false,
+                alerta_dias: "⚠ Ya registraste asistencia hoy",
+                alerta_cuota: vencido ? "⚠ Cuota vencida" : null
+            });
+        }
+
+        // 8) Registrar asistencia
         await pool.query(
             "INSERT INTO asistencias (id_alumno, fecha, hora) VALUES ($1, CURRENT_DATE, CURRENT_TIME)",
             [alumno.id]
         );
 
-        // 6️⃣ RESPUESTA FINAL
+        // 9) Respuesta final
         return res.json({
             alumno,
             asistencias_semana: asistenciasSemana + 1,
-            limite_semanal: limite,
+            limite_semanal: alumno.dias_semana,
+            se_registro: true,
             alerta_dias: null,
-            alerta_cuota: vencido ? "⚠ Cuota vencida" : null,
-            se_registro: true
+            alerta_cuota: vencido ? "⚠ Cuota vencida" : null
         });
 
     } catch (error) {
         console.error("ERROR POST /asistencias:", error);
-        return res.status(500).json({ error: "Error registrando asistencia" });
+        res.status(500).json({ error: "Error al registrar asistencia" });
     }
 });
 
