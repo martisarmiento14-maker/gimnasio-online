@@ -68,6 +68,7 @@ router.post("/", async (req, res) => {
 
         const equipoAsignado = morado <= blanco ? "morado" : "blanco";
 
+        // ❗ FIX: activo debe ser INTEGER (1), NO boolean
         const query = `
             INSERT INTO alumnos 
             (nombre, apellido, dni, telefono, nivel, equipo, 
@@ -75,7 +76,7 @@ router.post("/", async (req, res) => {
             dias_semana, dias_eg_pers, fecha_vencimiento, activo)
             VALUES ($1, $2, $3, $4, $5, $6, 
                     $7, $8, $9, 
-                    $10, $11, $12, true)
+                    $10, $11, $12, 1)
             RETURNING *;
         `;
 
