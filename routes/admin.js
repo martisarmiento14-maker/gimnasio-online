@@ -40,7 +40,7 @@ router.put("/equipo/:id", async (req, res) => {
 });
 
 /* =============================
-   3) ACTIVAR ALUMNO
+   3) ACTIVAR ALUMNO (activo = 1)
    ============================= */
 router.put("/activar/:id", async (req, res) => {
     try {
@@ -48,7 +48,7 @@ router.put("/activar/:id", async (req, res) => {
 
         const result = await pool.query(`
             UPDATE alumnos
-            SET activo = true
+            SET activo = 1
             WHERE id = $1
             RETURNING *;
         `, [id]);
@@ -61,7 +61,7 @@ router.put("/activar/:id", async (req, res) => {
 });
 
 /* =============================
-   4) DESACTIVAR ALUMNO
+   4) DESACTIVAR ALUMNO (activo = 0)
    ============================= */
 router.put("/desactivar/:id", async (req, res) => {
     try {
@@ -69,7 +69,7 @@ router.put("/desactivar/:id", async (req, res) => {
 
         const result = await pool.query(`
             UPDATE alumnos
-            SET activo = false
+            SET activo = 0
             WHERE id = $1
             RETURNING *;
         `, [id]);
@@ -98,7 +98,7 @@ router.delete("/:id", async (req, res) => {
 });
 
 /* =============================
-   6) FILTRAR POR EQUIPO
+   6) FILTRAR POR EQUIPO (opcional, hoy no lo usa el front)
    ============================= */
 router.get("/equipo/:equipo", async (req, res) => {
     try {
@@ -118,13 +118,13 @@ router.get("/equipo/:equipo", async (req, res) => {
 });
 
 /* =============================
-   7) LISTAR SOLO ACTIVOS
+   7) LISTAR SOLO ACTIVOS (opcional)
    ============================= */
 router.get("/activos", async (req, res) => {
     try {
         const result = await pool.query(`
             SELECT * FROM alumnos
-            WHERE activo = true
+            WHERE activo = 1
             ORDER BY apellido ASC;
         `);
         res.json(result.rows);
@@ -135,13 +135,13 @@ router.get("/activos", async (req, res) => {
 });
 
 /* =============================
-   8) LISTAR SOLO INACTIVOS
+   8) LISTAR SOLO INACTIVOS (opcional)
    ============================= */
 router.get("/inactivos", async (req, res) => {
     try {
         const result = await pool.query(`
             SELECT * FROM alumnos
-            WHERE activo = false
+            WHERE activo = 0
             ORDER BY apellido ASC;
         `);
         res.json(result.rows);
