@@ -14,17 +14,17 @@ import asistenciasRoutes from "./routes/asistencias.js";
 
 const app = express();
 
-// CORS CONFIGURADO CORRECTAMENTE
+// 🚨 CORS DEFINITIVO
 app.use(cors({
     origin: [
         "https://gimnasio-online-frontend.onrender.com",
         "https://gimnasio-online-1.onrender.com",
-        "http://localhost:3000"
+        "http://localhost:3000",
+        "http://127.0.0.1:5501"   // <--- AGREGADO PARA LIVE SERVER
     ],
     methods: "GET,POST,PUT,DELETE",
     credentials: true
 }));
-
 
 app.use(express.json());
 

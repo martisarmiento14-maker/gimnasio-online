@@ -36,7 +36,7 @@ router.get("/:id", async (req, res) => {
 });
 
 /* ============================================
-   🔹 HELPER — CALCULAR DÍAS SEGÚN PLANES
+🔹 HELPER — CALCULAR DÍAS SEGÚN PLANES
    ============================================ */
 function calcularDias(plan_eg, plan_personalizado, plan_running, dias_eg_o_pers) {
     let total = 0;
@@ -49,7 +49,7 @@ function calcularDias(plan_eg, plan_personalizado, plan_running, dias_eg_o_pers)
 }
 
 /* ============================================
-   🔹 POST — CREAR ALUMNO
+🔹 POST — CREAR ALUMNO
    ============================================ */
 router.post("/", async (req, res) => {
     try {
