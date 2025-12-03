@@ -38,6 +38,11 @@ router.post("/", async (req, res) => {
         const fechaVenc = new Date(alumno.fecha_vencimiento);
         const vencido = fechaVenc < hoy;
 
+        // Formato lindo de fecha
+        const fechaVencLinda = alumno.fecha_vencimiento
+            ? new Date(alumno.fecha_vencimiento).toISOString().split("T")[0]
+            : "sin fecha";
+
         // 3) Límite semanal según planes
         let limiteSemanal = 0;
         if (alumno.plan_eg) limiteSemanal += alumno.dias_semana;
@@ -112,7 +117,7 @@ router.post("/", async (req, res) => {
             ok: true,
             motivo: vencido ? "vencido" : "ok",
             mensaje: vencido
-                ? `Tu cuota está vencida desde ${alumno.fecha_vencimiento}`
+                ? `Tu cuota está vencida desde ${fechaVencLinda}`
                 : "Asistencia registrada correctamente",
             alumno,
             asistenciasSemana: nuevasAsistencias,
