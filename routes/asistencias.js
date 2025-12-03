@@ -3,104 +3,123 @@ import pool from "../database/db.js";
 
 const router = express.Router();
 
-/* =====================================================
-   REGISTRAR ASISTENCIA (BACKEND DEFINITIVO)
-   ===================================================== */
+/* ============================================================
+   📌 LUNES DE ESTA SEMANA (inicio de semana)
+============================================================ */
+const lunesSQL = `
+    (date_trunc('week', CURRENT_DATE) + INTERVAL '1 day')
+`;
+
+/* ============================================================
+   📌 POST — REGISTRAR ASISTENCIA
+============================================================ */
 router.post("/", async (req, res) => {
     try {
         const { dni } = req.body;
 
-        if (!dni) return res.status(400).json({ error: "Faltó el DNI" });
+        if (!dni) {
+            return res.status(400).json({ error: "Falta DNI" });
+        }
 
-        // 1) Buscar alumno activo por DNI
+        // 1) Buscar alumno activo
         const alumnoQuery = await pool.query(
             "SELECT * FROM alumnos WHERE dni = $1 AND activo = 1",
             [dni]
         );
 
         if (alumnoQuery.rows.length === 0) {
-            return res.status(404).json({ error: "No existe un alumno activo con ese DNI" });
+            return res.status(404).json({ error: "Alumno no encontrado o desactivado" });
         }
 
         const alumno = alumnoQuery.rows[0];
 
-        // 2) Lógica de planes (para mostrar en frontend)
-        let planes = [];
-        if (alumno.plan_eg) planes.push("EG");
-        if (alumno.plan_personalizado) planes.push("Personalizado");
-        if (alumno.plan_running) planes.push("Running");
-
-        alumno.planes = planes.length ? planes.join(" + ") : "Sin plan";
-
-        // 3) Verificar vencimiento
+        // 2) Vencimiento
         const hoy = new Date();
         const fechaVenc = new Date(alumno.fecha_vencimiento);
         const vencido = fechaVenc < hoy;
 
-        // 4) Cantidad de asistencias de la semana
-        const asistenciasSemanaQuery = await pool.query(
+        // 3) Límite semanal según planes
+        let limiteSemanal = 0;
+        if (alumno.plan_eg) limiteSemanal += alumno.dias_semana;
+        if (alumno.plan_personalizado) limiteSemanal += alumno.dias_semana;
+        if (alumno.plan_running) limiteSemanal += 2;
+        if (limiteSemanal === 0) limiteSemanal = alumno.dias_semana;
+
+        // 4) Asistencias esta semana (desde lunes)
+        const semanaQuery = await pool.query(
             `
-            SELECT COUNT(*) 
+            SELECT COUNT(*) AS total
             FROM asistencias
             WHERE id_alumno = $1
-            AND fecha >= date_trunc('week', CURRENT_DATE)
+            AND fecha >= ${lunesSQL}
             `,
             [alumno.id]
         );
+        const asistenciasSemana = parseInt(semanaQuery.rows[0].total);
 
-        const asistenciasSemana = parseInt(asistenciasSemanaQuery.rows[0].count);
-
-        // 5) Comprobar si YA REGISTRÓ HOY (evita que duplique)
-        const hoyAsistencia = await pool.query(
+        // 5) Verificar si YA vino hoy
+        const hoyQuery = await pool.query(
             `
-            SELECT 1 
+            SELECT COUNT(*) AS total
             FROM asistencias
             WHERE id_alumno = $1
             AND fecha = CURRENT_DATE
             `,
             [alumno.id]
         );
+        const asistioHoy = parseInt(hoyQuery.rows[0].total) > 0;
 
-        const yaRegistroHoy = hoyAsistencia.rows.length > 0;
-
-        // 6) Caso: ya alcanzó su límite semanal
-        if (alumno.dias_semana > 0 && asistenciasSemana >= alumno.dias_semana && !yaRegistroHoy) {
+        // 🟥 Ya registró hoy
+        if (asistioHoy) {
             return res.json({
+                ok: false,
+                motivo: "ya_registrado",
+                mensaje: "Ya registraste asistencia hoy",
                 alumno,
+                asistenciasSemana,
                 asistencias_semana: asistenciasSemana,
-                limite_semanal: alumno.dias_semana,
-                se_registro: false,
-                alerta_dias: "❗ Ya agotaste tus días de entrenamiento esta semana",
-                alerta_cuota: vencido ? "⚠ Cuota vencida" : null
+                limiteSemanal,
+                limite_semanal: limiteSemanal,
+                vencido,
             });
         }
 
-        // 7) Si ya pasó hoy → NO registrar de nuevo
-        if (yaRegistroHoy) {
+        // 🟥 Límite semanal superado
+        if (asistenciasSemana >= limiteSemanal) {
             return res.json({
+                ok: false,
+                motivo: "limite_semana",
+                mensaje: "Ya superaste tu límite semanal",
                 alumno,
+                asistenciasSemana,
                 asistencias_semana: asistenciasSemana,
-                limite_semanal: alumno.dias_semana,
-                se_registro: false,
-                alerta_dias: "⚠ Ya registraste asistencia hoy",
-                alerta_cuota: vencido ? "⚠ Cuota vencida" : null
+                limiteSemanal,
+                limite_semanal: limiteSemanal,
+                vencido,
             });
         }
 
-        // 8) Registrar asistencia
+        // 6) Registrar asistencia
         await pool.query(
             "INSERT INTO asistencias (id_alumno, fecha, hora) VALUES ($1, CURRENT_DATE, CURRENT_TIME)",
             [alumno.id]
         );
 
-        // 9) Respuesta final
+        const nuevasAsistencias = asistenciasSemana + 1;
+
+        // 🟩 Respuesta final
         return res.json({
+            ok: true,
+            motivo: vencido ? "vencido" : "ok",
+            mensaje: vencido
+                ? `Tu cuota está vencida desde ${alumno.fecha_vencimiento}`
+                : "Asistencia registrada correctamente",
             alumno,
-            asistencias_semana: asistenciasSemana + 1,
-            limite_semanal: alumno.dias_semana,
-            se_registro: true,
-            alerta_dias: null,
-            alerta_cuota: vencido ? "⚠ Cuota vencida" : null
+            asistenciasSemana: nuevasAsistencias,
+            asistencias_semana: nuevasAsistencias,
+            limiteSemanal,
+            limite_semanal: limiteSemanal,
+            vencido,
         });
 
     } catch (error) {
