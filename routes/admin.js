@@ -1,6 +1,3 @@
-router.get("/test", (req, res) => {
-    res.send("ADMIN OK");
-});
 
 import express from "express";
 import db from "../database/db.js";
