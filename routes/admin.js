@@ -92,6 +92,47 @@ router.delete("/:id", async (req, res) => {
         res.status(500).json({ error: "Error al borrar alumno" });
     }
 });
+/* ===========================================
+GET — ESTADÍSTICAS GENERALES
+=========================================== */
+router.get("/estadisticas", async (req, res) => {
+    try {
+        // Alumnos ingresados este mes
+        const alumnosMes = await db.query(`
+            SELECT COUNT(*) 
+            FROM alumnos
+            WHERE fecha_alta >= date_trunc('month', CURRENT_DATE)
+        `);
+
+        // Alumnos por plan (solo activos)
+        const planes = await db.query(`
+            SELECT
+                SUM(CASE WHEN plan_eg = true THEN 1 ELSE 0 END) AS eg,
+                SUM(CASE WHEN plan_personalizado = true THEN 1 ELSE 0 END) AS personalizado,
+                SUM(CASE WHEN plan_running = true THEN 1 ELSE 0 END) AS running
+            FROM alumnos
+            WHERE activo = 1
+        `);
+
+        // Renovaciones del mes
+        const renovaciones = await db.query(`
+            SELECT COUNT(*)
+            FROM alumnos
+            WHERE fecha_vencimiento >= date_trunc('month', CURRENT_DATE)
+            AND fecha_vencimiento < date_trunc('month', CURRENT_DATE) + INTERVAL '1 month'
+        `);
+
+        res.json({
+            alumnos_mes: Number(alumnosMes.rows[0].count),
+            planes: planes.rows[0],
+            renovaciones_mes: Number(renovaciones.rows[0].count)
+        });
+
+    } catch (error) {
+        console.error("ERROR ESTADISTICAS:", error);
+        res.status(500).json({ error: "Error obteniendo estadísticas" });
+    }
+});
 
 
 export default router;
