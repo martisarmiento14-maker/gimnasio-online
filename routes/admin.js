@@ -155,6 +155,56 @@ router.post("/pagos", async (req, res) => {
         res.status(500).json({ error: "Error registrando pago" });
     }
 });
+router.get("/estadisticas-finanzas", async (req, res) => {
+    try {
+        const { mes, anio } = req.query;
+
+        if (!mes || !anio) {
+            return res.status(400).json({ error: "Faltan mes o año" });
+        }
+
+        const fechaInicio = `${anio}-${mes}-01`;
+
+        const ingresos = await db.query(`
+            SELECT
+                COALESCE(SUM(monto), 0) AS total,
+                COALESCE(SUM(CASE WHEN metodo_pago = 'efectivo' THEN monto END), 0) AS efectivo,
+                COALESCE(SUM(CASE WHEN metodo_pago = 'transferencia' THEN monto END), 0) AS transferencia
+            FROM pagos
+            WHERE fecha_pago >= $1
+                AND fecha_pago < (DATE $1 + INTERVAL '1 month')
+        `, [fechaInicio]);
+
+        const alumnosNuevos = await db.query(`
+            SELECT COUNT(DISTINCT id_alumno) AS cantidad
+            FROM pagos
+            WHERE tipo = 'alta'
+                AND fecha_pago >= $1
+                AND fecha_pago < (DATE $1 + INTERVAL '1 month')
+        `, [fechaInicio]);
+
+        const renovaciones = await db.query(`
+            SELECT COUNT(*) AS cantidad
+            FROM pagos
+            WHERE tipo = 'renovacion'
+                AND fecha_pago >= $1
+                AND fecha_pago < (DATE $1 + INTERVAL '1 month')
+        `, [fechaInicio]);
+
+        res.json({
+            mes,
+            anio,
+            ingresos: ingresos.rows[0],
+            alumnos_nuevos: Number(alumnosNuevos.rows[0].cantidad),
+            renovaciones: Number(renovaciones.rows[0].cantidad)
+        });
+
+    } catch (error) {
+        console.error("ERROR ESTADISTICAS FINANZAS:", error);
+        res.status(500).json({ error: "Error obteniendo estadísticas financieras" });
+    }
+});
+
 
 
 
