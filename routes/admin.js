@@ -167,28 +167,28 @@ router.get("/estadisticas-finanzas", async (req, res) => {
 
         const ingresos = await db.query(`
             SELECT
-                COALESCE(SUM(monto), 0) AS total,
-                COALESCE(SUM(CASE WHEN metodo_pago = 'efectivo' THEN monto END), 0) AS efectivo,
-                COALESCE(SUM(CASE WHEN metodo_pago = 'transferencia' THEN monto END), 0) AS transferencia
+              COALESCE(SUM(monto), 0) AS total,
+              COALESCE(SUM(CASE WHEN metodo_pago = 'efectivo' THEN monto ELSE 0 END), 0) AS efectivo,
+              COALESCE(SUM(CASE WHEN metodo_pago = 'transferencia' THEN monto ELSE 0 END), 0) AS transferencia
             FROM pagos
-            WHERE fecha_pago >= $1
-                AND fecha_pago < (DATE $1 + INTERVAL '1 month')
+            WHERE fecha_pago >= to_date($1, 'YYYY-MM-DD')
+              AND fecha_pago < (to_date($1, 'YYYY-MM-DD') + INTERVAL '1 month')
         `, [fechaInicio]);
 
         const alumnosNuevos = await db.query(`
             SELECT COUNT(DISTINCT id_alumno) AS cantidad
             FROM pagos
             WHERE tipo = 'alta'
-                AND fecha_pago >= $1
-                AND fecha_pago < (DATE $1 + INTERVAL '1 month')
+              AND fecha_pago >= to_date($1, 'YYYY-MM-DD')
+              AND fecha_pago < (to_date($1, 'YYYY-MM-DD') + INTERVAL '1 month')
         `, [fechaInicio]);
 
         const renovaciones = await db.query(`
             SELECT COUNT(*) AS cantidad
             FROM pagos
             WHERE tipo = 'renovacion'
-                AND fecha_pago >= $1
-                AND fecha_pago < (DATE $1 + INTERVAL '1 month')
+              AND fecha_pago >= to_date($1, 'YYYY-MM-DD')
+              AND fecha_pago < (to_date($1, 'YYYY-MM-DD') + INTERVAL '1 month')
         `, [fechaInicio]);
 
         res.json({
@@ -204,6 +204,7 @@ router.get("/estadisticas-finanzas", async (req, res) => {
         res.status(500).json({ error: "Error obteniendo estadísticas financieras" });
     }
 });
+
 
 
 
