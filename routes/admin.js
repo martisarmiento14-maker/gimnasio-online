@@ -93,110 +93,128 @@ router.delete("/:id", async (req, res) => {
         res.status(500).json({ error: "Error al borrar alumno" });
     }
 });
+
 /* ===========================================
-GET — ESTADÍSTICAS GENERALES
+GET — ESTADÍSTICAS FINANCIERAS COMPLETAS
 =========================================== */
-router.get("/estadisticas", async (req, res) => {
-    try {
-        // Alumnos ingresados este mes
-        const alumnosMes = await db.query(`
-            SELECT COUNT(*) 
-            FROM alumnos
-            WHERE fecha_alta >= date_trunc('month', CURRENT_DATE)
-        `);
-
-        // Alumnos por plan (solo activos)
-        const planes = await db.query(`
-            SELECT
-                SUM(CASE WHEN plan_eg = true THEN 1 ELSE 0 END) AS eg,
-                SUM(CASE WHEN plan_personalizado = true THEN 1 ELSE 0 END) AS personalizado,
-                SUM(CASE WHEN plan_running = true THEN 1 ELSE 0 END) AS running
-            FROM alumnos
-            WHERE activo = 1
-        `);
-
-        // Renovaciones del mes
-        const renovaciones = await db.query(`
-            SELECT COUNT(*)
-            FROM alumnos
-            WHERE fecha_vencimiento >= date_trunc('month', CURRENT_DATE)
-            AND fecha_vencimiento < date_trunc('month', CURRENT_DATE) + INTERVAL '1 month'
-        `);
-
-        res.json({
-            alumnos_mes: Number(alumnosMes.rows[0].count),
-            planes: planes.rows[0],
-            renovaciones_mes: Number(renovaciones.rows[0].count)
-        });
-
-    } catch (error) {
-        console.error("ERROR ESTADISTICAS:", error);
-        res.status(500).json({ error: "Error obteniendo estadísticas" });
-    }
-});
-router.post("/pagos", async (req, res) => {
-    try {
-        const { id_alumno, monto, metodo_pago, tipo } = req.body;
-
-        if (!id_alumno || !monto || !metodo_pago || !tipo) {
-            return res.status(400).json({ error: "Faltan datos obligatorios" });
-        }
-
-        await db.query(
-            `INSERT INTO pagos (id_alumno, monto, metodo_pago, tipo)
-            VALUES ($1, $2, $3, $4)`,
-            [id_alumno, monto, metodo_pago, tipo]
-        );
-
-        res.json({ ok: true });
-
-    } catch (error) {
-        console.error("ERROR REGISTRANDO PAGO:", error);
-        res.status(500).json({ error: "Error registrando pago" });
-    }
-});
 router.get("/estadisticas-finanzas", async (req, res) => {
     try {
         const { mes, anio } = req.query;
 
         if (!mes || !anio) {
-            return res.status(400).json({ error: "Faltan mes o año" });
+            return res.status(400).json({ error: "Mes y año requeridos" });
         }
 
-        const fechaInicio = `${anio}-${mes}-01`;
-
-        const ingresos = await db.query(`
+        /* ===============================
+        INGRESOS TOTALES Y MÉTODOS DE PAGO
+        =============================== */
+        const ingresosQuery = await db.query(`
             SELECT
-              COALESCE(SUM(monto), 0) AS total,
-              COALESCE(SUM(CASE WHEN metodo_pago = 'efectivo' THEN monto ELSE 0 END), 0) AS efectivo,
-              COALESCE(SUM(CASE WHEN metodo_pago = 'transferencia' THEN monto ELSE 0 END), 0) AS transferencia
+                SUM(monto) AS total,
+                SUM(CASE WHEN metodo_pago = 'efectivo' THEN monto ELSE 0 END) AS efectivo,
+                SUM(CASE WHEN metodo_pago = 'transferencia' THEN monto ELSE 0 END) AS transferencia
             FROM pagos
-            WHERE fecha_pago >= to_date($1, 'YYYY-MM-DD')
-              AND fecha_pago < (to_date($1, 'YYYY-MM-DD') + INTERVAL '1 month')
-        `, [fechaInicio]);
+            WHERE EXTRACT(MONTH FROM fecha_pago) = $1
+            AND EXTRACT(YEAR FROM fecha_pago) = $2
+        `, [mes, anio]);
 
-        const alumnosNuevos = await db.query(`
-            SELECT COUNT(DISTINCT id_alumno) AS cantidad
-            FROM pagos
-            WHERE tipo = 'alta'
-              AND fecha_pago >= to_date($1, 'YYYY-MM-DD')
-              AND fecha_pago < (to_date($1, 'YYYY-MM-DD') + INTERVAL '1 month')
-        `, [fechaInicio]);
+        const ingresos = ingresosQuery.rows[0];
 
-        const renovaciones = await db.query(`
-            SELECT COUNT(*) AS cantidad
+        /* ===============================
+        ALUMNOS NUEVOS DEL MES
+        =============================== */
+        const alumnosNuevosQuery = await db.query(`
+            SELECT COUNT(*)
+            FROM alumnos
+            WHERE EXTRACT(MONTH FROM fecha_alta) = $1
+            AND EXTRACT(YEAR FROM fecha_alta) = $2
+        `, [mes, anio]);
+
+        const alumnos_nuevos = Number(alumnosNuevosQuery.rows[0].count);
+
+        /* ===============================
+        RENOVACIONES DEL MES
+        =============================== */
+        const renovacionesQuery = await db.query(`
+            SELECT COUNT(*)
             FROM pagos
             WHERE tipo = 'renovacion'
-              AND fecha_pago >= to_date($1, 'YYYY-MM-DD')
-              AND fecha_pago < (to_date($1, 'YYYY-MM-DD') + INTERVAL '1 month')
-        `, [fechaInicio]);
+            AND EXTRACT(MONTH FROM fecha_pago) = $1
+            AND EXTRACT(YEAR FROM fecha_pago) = $2
+        `, [mes, anio]);
 
+        const renovaciones = Number(renovacionesQuery.rows[0].count);
+
+        /* ===============================
+        PLANES (ALTAS Y RENOVACIONES)
+        =============================== */
+        const planesQuery = await db.query(`
+            SELECT
+                p.tipo,
+                a.plan_eg,
+                a.plan_personalizado,
+                a.plan_running
+            FROM pagos p
+            JOIN alumnos a ON a.id = p.id_alumno
+            WHERE EXTRACT(MONTH FROM p.fecha_pago) = $1
+            AND EXTRACT(YEAR FROM p.fecha_pago) = $2
+        `, [mes, anio]);
+
+        const planes = {
+            altas: { eg: 0, personalizado: 0, running: 0 },
+            renovaciones: { eg: 0, personalizado: 0, running: 0 }
+        };
+
+        planesQuery.rows.forEach(row => {
+            const destino = row.tipo === "alta"
+                ? planes.altas
+                : planes.renovaciones;
+
+            if (row.plan_eg) destino.eg++;
+            if (row.plan_personalizado) destino.personalizado++;
+            if (row.plan_running) destino.running++;
+        });
+
+        /* ===============================
+        EVOLUCIÓN MENSUAL
+        =============================== */
+        const evolucionQuery = await db.query(`
+            SELECT
+                EXTRACT(MONTH FROM fecha_pago) AS mes,
+                SUM(monto) AS ingresos,
+                COUNT(*) FILTER (WHERE tipo = 'renovacion') AS renovaciones
+            FROM pagos
+            WHERE EXTRACT(YEAR FROM fecha_pago) = $1
+            GROUP BY mes
+            ORDER BY mes
+        `, [anio]);
+
+        const meses = [
+            "", "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+            "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
+        ];
+
+        const evolucion = evolucionQuery.rows.map(row => ({
+            mes: meses[Number(row.mes)],
+            ingresos: Number(row.ingresos),
+            renovaciones: Number(row.renovaciones)
+        }));
+
+        /* ===============================
+        RESPUESTA FINAL
+        =============================== */
         res.json({
             mes,
             anio,
-            ingresos: ingresos.rows[0],
-            alumnos_nuevos: Number(alumnosNuevos.rows[0].cantidad),
-            renovaciones: Number(renovaciones.rows[0].cantidad)
+            ingresos: {
+                total: Number(ingresos.total || 0),
+                efectivo: Number(ingresos.efectivo || 0),
+                transferencia: Number(ingresos.transferencia || 0)
+            },
+            alumnos_nuevos,
+            renovaciones,
+            planes,
+            evolucion
         });
 
     } catch (error) {
@@ -204,30 +222,6 @@ router.get("/estadisticas-finanzas", async (req, res) => {
         res.status(500).json({ error: "Error obteniendo estadísticas financieras" });
     }
 });
-
-/* ===========================================
-GET — INGRESOS POR MES (GRÁFICO)
-=========================================== */
-router.get("/ingresos-mensuales", async (req, res) => {
-    try {
-        const result = await db.query(`
-            SELECT
-                to_char(date_trunc('month', fecha_pago), 'YYYY-MM') AS mes,
-                SUM(monto) AS total
-            FROM pagos
-            GROUP BY mes
-            ORDER BY mes
-        `);
-
-        res.json(result.rows);
-
-    } catch (error) {
-        console.error("ERROR INGRESOS MENSUALES:", error);
-        res.status(500).json({ error: "Error obteniendo ingresos mensuales" });
-    }
-});
-
-
 
 
 export default router;
