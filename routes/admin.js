@@ -1,3 +1,7 @@
+router.get("/test", (req, res) => {
+    res.send("ADMIN OK");
+});
+
 import express from "express";
 import db from "../database/db.js";
 
@@ -133,6 +137,28 @@ router.get("/estadisticas", async (req, res) => {
         res.status(500).json({ error: "Error obteniendo estadísticas" });
     }
 });
+router.post("/pagos", async (req, res) => {
+    try {
+        const { id_alumno, monto, metodo_pago, tipo } = req.body;
+
+        if (!id_alumno || !monto || !metodo_pago || !tipo) {
+            return res.status(400).json({ error: "Faltan datos obligatorios" });
+        }
+
+        await db.query(
+            `INSERT INTO pagos (id_alumno, monto, metodo_pago, tipo)
+            VALUES ($1, $2, $3, $4)`,
+            [id_alumno, monto, metodo_pago, tipo]
+        );
+
+        res.json({ ok: true });
+
+    } catch (error) {
+        console.error("ERROR REGISTRANDO PAGO:", error);
+        res.status(500).json({ error: "Error registrando pago" });
+    }
+});
+
 
 
 export default router;
