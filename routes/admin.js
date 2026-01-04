@@ -205,6 +205,27 @@ router.get("/estadisticas-finanzas", async (req, res) => {
     }
 });
 
+/* ===========================================
+GET — INGRESOS POR MES (GRÁFICO)
+=========================================== */
+router.get("/ingresos-mensuales", async (req, res) => {
+    try {
+        const result = await db.query(`
+            SELECT
+                to_char(date_trunc('month', fecha_pago), 'YYYY-MM') AS mes,
+                SUM(monto) AS total
+            FROM pagos
+            GROUP BY mes
+            ORDER BY mes
+        `);
+
+        res.json(result.rows);
+
+    } catch (error) {
+        console.error("ERROR INGRESOS MENSUALES:", error);
+        res.status(500).json({ error: "Error obteniendo ingresos mensuales" });
+    }
+});
 
 
 
