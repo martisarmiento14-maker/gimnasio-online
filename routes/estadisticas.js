@@ -10,20 +10,19 @@ router.get("/", async (req, res) => {
         return res.status(400).json({ error: "Mes requerido" });
     }
 
-    try {
-        // inicio del mes
-        const inicioMes = `${mes}-01`;
+    const [year, month] = mes.split("-").map(Number);
 
+    try {
         // ===============================
         // 1️⃣ ALTAS + RENOVACIONES
         // ===============================
         const totalAlumnos = await db.query(`
             SELECT tipo, COUNT(*)::int AS count
             FROM pagos
-            WHERE fecha_pago >= DATE_TRUNC('month', $1::date)
-              AND fecha_pago <  DATE_TRUNC('month', $1::date) + INTERVAL '1 month'
+            WHERE EXTRACT(YEAR FROM fecha_pago) = $1
+              AND EXTRACT(MONTH FROM fecha_pago) = $2
             GROUP BY tipo
-        `, [inicioMes]);
+        `, [year, month]);
 
         // ===============================
         // 2️⃣ PLANES (ALTAS)
@@ -37,10 +36,10 @@ router.get("/", async (req, res) => {
             FROM alumnos a
             JOIN pagos p ON a.id = p.alumno_id
             WHERE p.tipo = 'alta'
-              AND p.fecha_pago >= DATE_TRUNC('month', $1::date)
-              AND p.fecha_pago <  DATE_TRUNC('month', $1::date) + INTERVAL '1 month'
+              AND EXTRACT(YEAR FROM p.fecha_pago) = $1
+              AND EXTRACT(MONTH FROM p.fecha_pago) = $2
             GROUP BY a.plan_eg, a.plan_personalizado, a.plan_running
-        `, [inicioMes]);
+        `, [year, month]);
 
         // ===============================
         // 3️⃣ EG por días
@@ -68,10 +67,10 @@ router.get("/", async (req, res) => {
         const ingresos = await db.query(`
             SELECT metodo_pago, SUM(monto)::int AS sum
             FROM pagos
-            WHERE fecha_pago >= DATE_TRUNC('month', $1::date)
-              AND fecha_pago <  DATE_TRUNC('month', $1::date) + INTERVAL '1 month'
+            WHERE EXTRACT(YEAR FROM fecha_pago) = $1
+              AND EXTRACT(MONTH FROM fecha_pago) = $2
             GROUP BY metodo_pago
-        `, [inicioMes]);
+        `, [year, month]);
 
         res.json({
             totalAlumnos: totalAlumnos.rows,
@@ -82,7 +81,7 @@ router.get("/", async (req, res) => {
         });
 
     } catch (error) {
-        console.error("❌ ERROR ESTADISTICAS:", error);
+        console.error("❌ ERROR ESTADISTICAS REAL:", error);
         res.status(500).json({ error: "Error estadísticas" });
     }
 });
