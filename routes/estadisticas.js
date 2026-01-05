@@ -48,21 +48,15 @@ router.get("/", async (req, res) => {
 router.get("/planes", async (req, res) => {
     try {
         const { mes } = req.query;
-        if (!mes) {
-            return res.status(400).json({ error: "Falta mes" });
-        }
 
         const query = `
-            SELECT
-                a.plan_personalizado,
-                a.plan_eg,
-                a.plan_running
-            FROM pagos p
-            JOIN alumnos a ON a.id = p.id_alumno
-            WHERE date_trunc('month', p.fecha_pago) = date_trunc('month', $1::date)
+            SELECT plan
+            FROM pagos
+            WHERE to_char(fecha_pago, 'YYYY-MM') = $1
+            AND plan IS NOT NULL
         `;
 
-        const result = await db.query(query, [`${mes}-01`]);
+        const result = await db.query(query, [mes]);
 
         const conteo = {
             personalizado: 0,
@@ -72,21 +66,23 @@ router.get("/planes", async (req, res) => {
             combo2: 0
         };
 
-        result.rows.forEach(p => {
-            if (p.plan_personalizado && p.plan_running) conteo.combo1++;
-            else if (p.plan_eg && p.plan_running) conteo.combo2++;
-            else if (p.plan_personalizado) conteo.personalizado++;
-            else if (p.plan_eg) conteo.eg++;
-            else if (p.plan_running) conteo.running++;
+        result.rows.forEach(r => {
+            if (r.plan === "personalizado") conteo.personalizado++;
+            else if (r.plan === "eg") conteo.eg++;
+            else if (r.plan === "running") conteo.running++;
+            else if (r.plan === "personalizado+running") conteo.combo1++;
+            else if (r.plan === "eg+running") conteo.combo2++;
         });
 
         res.json(conteo);
 
     } catch (error) {
-        console.error("🔥 ERROR PLANES:", error);
+        console.error("ERROR PLANES:", error);
         res.status(500).json({ error: "Error estadísticas planes" });
     }
 });
+
+
 router.get("/planes-dias", async (req, res) => {
     try {
         const { mes } = req.query;
@@ -99,7 +95,9 @@ router.get("/planes-dias", async (req, res) => {
                 SUM(CASE WHEN plan = 'personalizado' AND dias_por_semana = 3 THEN 1 ELSE 0 END) AS pers_3_dias,
                 SUM(CASE WHEN plan = 'personalizado' AND dias_por_semana = 5 THEN 1 ELSE 0 END) AS pers_5_dias
             FROM pagos
-            WHERE to_char(fecha_pago, 'YYYY-MM') = $1;
+            WHERE to_char(fecha_pago, 'YYYY-MM') = $1
+            AND plan IS NOT NULL
+            AND dias_por_semana IS NOT NULL
         `;
 
         const result = await db.query(query, [mes]);
@@ -111,6 +109,7 @@ router.get("/planes-dias", async (req, res) => {
         res.status(500).json({ error: "Error estadísticas planes-dias" });
     }
 });
+
 
 router.get("/ingresos", async (req, res) => {
     try {
