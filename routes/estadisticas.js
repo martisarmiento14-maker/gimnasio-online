@@ -58,7 +58,7 @@ router.get("/planes", async (req, res) => {
                 a.plan_eg,
                 a.plan_running
             FROM pagos p
-            JOIN alumnos a ON a.id = p.id_alumno
+            JOIN alumnos a ON a.id = p.alumno_id
             WHERE date_trunc('month', p.fecha_pago) = date_trunc('month', $1::date)
         `;
 
@@ -90,18 +90,20 @@ router.get("/planes", async (req, res) => {
 router.get("/planes-dias", async (req, res) => {
     try {
         const { mes } = req.query;
+        if (!mes) {
+            return res.status(400).json({ error: "Falta mes" });
+        }
 
         const query = `
             SELECT
-                SUM(CASE WHEN a.plan_eg = true AND a.dias_eg_pers = 3 THEN 1 ELSE 0 END) AS eg_3_dias,
-                SUM(CASE WHEN a.plan_eg = true AND a.dias_eg_pers = 5 THEN 1 ELSE 0 END) AS eg_5_dias,
+                SUM(CASE WHEN plan_eg = true AND dias_eg_pers = 3 THEN 1 ELSE 0 END) AS eg_3_dias,
+                SUM(CASE WHEN plan_eg = true AND dias_eg_pers = 5 THEN 1 ELSE 0 END) AS eg_5_dias,
 
-                SUM(CASE WHEN a.plan_personalizado = true AND a.dias_eg_pers = 3 THEN 1 ELSE 0 END) AS pers_3_dias,
-                SUM(CASE WHEN a.plan_personalizado = true AND a.dias_eg_pers = 5 THEN 1 ELSE 0 END) AS pers_5_dias
-            FROM pagos p
-            JOIN alumnos a ON a.id = p.alumno_id
-            WHERE to_char(p.fecha_pago, 'YYYY-MM') = $1
-              AND p.tipo IN ('alta', 'renovacion');
+                SUM(CASE WHEN plan_personalizado = true AND dias_eg_pers = 3 THEN 1 ELSE 0 END) AS pers_3_dias,
+                SUM(CASE WHEN plan_personalizado = true AND dias_eg_pers = 5 THEN 1 ELSE 0 END) AS pers_5_dias
+            FROM alumnos
+            WHERE to_char(fecha_alta, 'YYYY-MM') = $1
+              AND activo = true;
         `;
 
         const result = await db.query(query, [mes]);
@@ -113,6 +115,8 @@ router.get("/planes-dias", async (req, res) => {
         res.status(500).json({ error: "Error estadísticas planes-dias" });
     }
 });
+
+
 router.get("/ingresos", async (req, res) => {
     try {
         const { mes } = req.query;
