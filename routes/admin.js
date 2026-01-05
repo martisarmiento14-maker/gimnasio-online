@@ -101,97 +101,52 @@ router.get("/estadisticas-finanzas", async (req, res) => {
     try {
         const { mes, anio } = req.query;
 
-        /* =============================
-           INGRESOS POR MÉTODO
-        ============================= */
-        const ingresosQuery = await pool.query(`
+        // INGRESOS
+        const ingresosResult = await pool.query(`
             SELECT
-                metodo_pago,
-                SUM(monto) AS total
+                COALESCE(SUM(CASE WHEN metodo_pago = 'efectivo' THEN monto ELSE 0 END), 0) AS efectivo,
+                COALESCE(SUM(CASE WHEN metodo_pago = 'transferencia' THEN monto ELSE 0 END), 0) AS transferencia
             FROM pagos
             WHERE EXTRACT(MONTH FROM fecha_pago) = $1
-              AND EXTRACT(YEAR FROM fecha_pago) = $2
-            GROUP BY metodo_pago
+            AND EXTRACT(YEAR FROM fecha_pago) = $2
         `, [mes, anio]);
 
-        const ingresos = {
-            efectivo: 0,
-            transferencia: 0
-        };
-
-        ingresosQuery.rows.forEach(r => {
-            ingresos[r.metodo_pago] = Number(r.total);
-        });
-
-        /* =============================
-           PLANES (ALTAS VS RENOVACIONES)
-        ============================= */
-        const planesQuery = await pool.query(`
-            SELECT
-                tipo,
-                SUM(CASE WHEN plan_eg THEN 1 ELSE 0 END) AS eg,
-                SUM(CASE WHEN plan_personalizado THEN 1 ELSE 0 END) AS personalizado,
-                SUM(CASE WHEN plan_running THEN 1 ELSE 0 END) AS running
-            FROM pagos
-            JOIN alumnos ON alumnos.id = pagos.alumno_id
-            WHERE EXTRACT(MONTH FROM pagos.fecha_pago) = $1
-              AND EXTRACT(YEAR FROM pagos.fecha_pago) = $2
-            GROUP BY tipo
+        // PLANES
+        const planesResult = await pool.query(`
+            SELECT tipo, plan_eg, plan_personalizado, plan_running
+            FROM pagos p
+            JOIN alumnos a ON a.id = p.alumno_id
+            WHERE EXTRACT(MONTH FROM p.fecha_pago) = $1
+            AND EXTRACT(YEAR FROM p.fecha_pago) = $2
         `, [mes, anio]);
 
-        const planes = {
-            altas: { eg: 0, personalizado: 0, running: 0 },
-            renovaciones: { eg: 0, personalizado: 0, running: 0 }
-        };
-
-        planesQuery.rows.forEach(r => {
-            if (r.tipo === "alta") {
-                planes.altas = {
-                    eg: Number(r.eg),
-                    personalizado: Number(r.personalizado),
-                    running: Number(r.running)
-                };
-            }
-            if (r.tipo === "renovacion") {
-                planes.renovaciones = {
-                    eg: Number(r.eg),
-                    personalizado: Number(r.personalizado),
-                    running: Number(r.running)
-                };
-            }
-        });
-
-        /* =============================
-           EVOLUCIÓN MENSUAL
-        ============================= */
-        const evolucionQuery = await pool.query(`
+        // EVOLUCIÓN (ejemplo simple)
+        const evolucionResult = await pool.query(`
             SELECT
                 TO_CHAR(fecha_pago, 'YYYY-MM') AS mes,
                 SUM(monto) AS ingresos,
-                COUNT(*) FILTER (WHERE tipo = 'renovacion') AS renovaciones
+                COUNT(*) AS renovaciones
             FROM pagos
             GROUP BY mes
             ORDER BY mes
         `);
 
-        const evolucion = evolucionQuery.rows.map(r => ({
-            mes: r.mes,
-            ingresos: Number(r.ingresos),
-            renovaciones: Number(r.renovaciones)
-        }));
-
-        /* =============================
-        RESPUESTA FINAL
-        ============================= */
         res.json({
-            ingresos,
-            planes,
-            evolucion
+            ingresos: ingresosResult.rows[0],   // 👈 SIEMPRE existe
+            planes: procesarPlanes(planesResult.rows),
+            evolucion: evolucionResult.rows
         });
 
     } catch (error) {
-        console.error("❌ ERROR ESTADÍSTICAS:", error);
-        res.status(500).json({ error: "Error estadísticas" });
+        console.error("❌ ERROR ESTADISTICAS:", error);
+        res.status(500).json({
+            ingresos: { efectivo: 0, transferencia: 0 },
+            planes: {
+                altas: { eg: 0, personalizado: 0, running: 0 },
+                renovaciones: { eg: 0, personalizado: 0, running: 0 }
+            },
+            evolucion: []
+        });
     }
 });
 
