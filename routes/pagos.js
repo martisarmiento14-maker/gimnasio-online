@@ -7,7 +7,7 @@ const router = express.Router();
 router.post("/", async (req, res) => {
     try {
         const {
-            alumno_id,
+            id_alumno,
             monto,
             metodo_pago,
             tipo
@@ -15,13 +15,13 @@ router.post("/", async (req, res) => {
 
     const query = `
         INSERT INTO pagos 
-        (alumno_id, monto, metodo_pago, fecha_pago, tipo)
+        (id_alumno, monto, metodo_pago, fecha_pago, tipo)
         VALUES ($1, $2, $3, CURRENT_DATE, $4)
         RETURNING *
     `;
 
     const result = await db.query(query, [
-        alumno_id,
+        id_alumno,
         monto,
         metodo_pago,
         tipo
