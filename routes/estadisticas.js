@@ -110,40 +110,32 @@ router.get("/planes-dias", async (req, res) => {
     }
 });
 
+
 router.get("/ingresos", async (req, res) => {
     try {
         const { mes } = req.query;
 
         const query = `
             SELECT
-                metodo_pago,
-                SUM(monto) AS total,
-                COUNT(*) AS personas
+                SUM(CASE WHEN metodo_pago = 'efectivo' THEN monto ELSE 0 END) AS efectivo,
+                SUM(CASE WHEN metodo_pago = 'transferencia' THEN monto ELSE 0 END) AS transferencia
             FROM pagos
-            WHERE to_char(fecha_pago, 'YYYY-MM') = $1
-            GROUP BY metodo_pago
+            WHERE to_char(fecha_pago, 'YYYY-MM') = $1;
         `;
 
         const result = await db.query(query, [mes]);
 
-        const data = {
-            efectivo: { total: 0, personas: 0 },
-            transferencia: { total: 0, personas: 0 }
-        };
-
-        result.rows.forEach(r => {
-            data[r.metodo_pago] = {
-                total: Number(r.total),
-                personas: Number(r.personas)
-            };
+        res.json({
+            efectivo: Number(result.rows[0].efectivo) || 0,
+            transferencia: Number(result.rows[0].transferencia) || 0
         });
-
-        res.json(data);
 
     } catch (error) {
         console.error("ERROR INGRESOS:", error);
         res.status(500).json({ error: "Error estadísticas ingresos" });
     }
 });
+
+
 
 export default router;
