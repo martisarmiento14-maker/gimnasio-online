@@ -3,68 +3,79 @@ import db from "../database/db.js";
 
 const router = express.Router();
 
+// 📊 ESTADÍSTICAS DEL MES
 router.get("/", async (req, res) => {
-  try {
-    const { mes, anio } = req.query;
+    const { mes } = req.query; // formato: 2026-01
 
-    const result = await db.query(`
-      SELECT
-        p.tipo,
-        a.plan_eg,
-        a.plan_personalizado,
-        a.plan_running,
-        a.dias_eg_pers
-      FROM pagos p
-      JOIN alumnos a ON a.id = p.id_alumno
-      WHERE EXTRACT(MONTH FROM p.fecha_pago) = $1
-      AND EXTRACT(YEAR FROM p.fecha_pago) = $2
-    `, [mes, anio]);
+    try {
+        // ===============================
+        // 1️⃣ TOTAL ALUMNOS (ALTAS + RENOVACIONES)
+        // ===============================
+        const totalAlumnos = await db.query(`
+            SELECT tipo, COUNT(*) 
+            FROM pagos
+            WHERE TO_CHAR(fecha_pago, 'YYYY-MM') = $1
+            GROUP BY tipo
+        `, [mes]);
 
-    const totalAlumnos = result.rows.length;
+        // ===============================
+        // 2️⃣ PLANES DEL MES (ALTAS)
+        // ===============================
+        const planes = await db.query(`
+            SELECT
+                plan_eg,
+                plan_personalizado,
+                plan_running,
+                COUNT(*) as total
+            FROM alumnos a
+            JOIN pagos p ON a.id = p.alumno_id
+            WHERE p.tipo = 'alta'
+            AND TO_CHAR(p.fecha_pago, 'YYYY-MM') = $1
+            GROUP BY plan_eg, plan_personalizado, plan_running
+        `, [mes]);
 
-    const planes = {
-      eg: 0,
-      personalizado: 0,
-      running: 0,
-      combo_eg: 0,
-      combo_pers: 0
-    };
+        // ===============================
+        // 3️⃣ EG por días
+        // ===============================
+        const egDias = await db.query(`
+            SELECT dias_eg_pers, COUNT(*) 
+            FROM alumnos
+            WHERE plan_eg = true
+            GROUP BY dias_eg_pers
+        `);
 
-    const diasEG = { tres: 0, cinco: 0 };
-    const diasPers = { tres: 0, cinco: 0 };
+        // ===============================
+        // 4️⃣ PERSONALIZADO por días
+        // ===============================
+        const persDias = await db.query(`
+            SELECT dias_eg_pers, COUNT(*) 
+            FROM alumnos
+            WHERE plan_personalizado = true
+            GROUP BY dias_eg_pers
+        `);
 
-    result.rows.forEach(r => {
-      // planes
-      if (r.plan_eg) planes.eg++;
-      if (r.plan_personalizado) planes.personalizado++;
-      if (r.plan_running) planes.running++;
+        // ===============================
+        // 5️⃣ INGRESOS
+        // ===============================
+        const ingresos = await db.query(`
+            SELECT metodo_pago, SUM(monto)
+            FROM pagos
+            WHERE TO_CHAR(fecha_pago, 'YYYY-MM') = $1
+            GROUP BY metodo_pago
+        `, [mes]);
 
-      if (r.plan_eg && r.plan_running) planes.combo_eg++;
-      if (r.plan_personalizado && r.plan_running) planes.combo_pers++;
+        res.json({
+            totalAlumnos: totalAlumnos.rows,
+            planes: planes.rows,
+            egDias: egDias.rows,
+            persDias: persDias.rows,
+            ingresos: ingresos.rows
+        });
 
-      // días
-      if (r.plan_eg) {
-        if (r.dias_eg_pers === 3) diasEG.tres++;
-        if (r.dias_eg_pers === 5) diasEG.cinco++;
-      }
-
-      if (r.plan_personalizado) {
-        if (r.dias_eg_pers === 3) diasPers.tres++;
-        if (r.dias_eg_pers === 5) diasPers.cinco++;
-      }
-    });
-
-    res.json({
-      totalAlumnos,
-      planes,
-      diasEG,
-      diasPersonalizado: diasPers
-    });
-
-  } catch (err) {
-    console.error("ERROR ESTADISTICAS:", err);
-    res.status(500).json({ error: "Error estadísticas" });
-  }
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: "Error estadísticas" });
+    }
 });
 
 export default router;
