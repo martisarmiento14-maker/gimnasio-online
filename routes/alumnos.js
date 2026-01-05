@@ -21,9 +21,10 @@ router.get("/", async (req, res) => {
 // ==========================
 router.get("/:id", async (req, res) => {
     try {
-        const result = await pool.query("SELECT * FROM alumnos WHERE id = $1", [
-            req.params.id,
-        ]);
+        const result = await pool.query(
+            "SELECT * FROM alumnos WHERE id = $1",
+            [req.params.id]
+        );
 
         if (result.rows.length === 0) {
             return res.status(404).json({ error: "Alumno no encontrado" });
@@ -37,7 +38,7 @@ router.get("/:id", async (req, res) => {
 });
 
 // ==========================
-//  POST - CREAR ALUMNO
+//  POST - CREAR ALUMNO + PAGO ALTA
 // ==========================
 router.post("/", async (req, res) => {
     try {
@@ -53,32 +54,27 @@ router.post("/", async (req, res) => {
             plan_running,
             dias_semana,
             dias_eg_pers,
+            // 👇 VIENEN DEL FORM DE ALTA
+            monto,
+            metodo_pago
         } = req.body;
 
         // =======================================================
-        //   📌 ASIGNACIÓN DE EQUIPO (LÓGICA DEFINITIVA)
+        //   📌 ASIGNACIÓN DE EQUIPO (TU LÓGICA ORIGINAL)
         // =======================================================
 
-        // 1️⃣ TOTAL DE ALUMNOS
         const totalAlumnos = await pool.query("SELECT COUNT(*) FROM alumnos");
         const total = Number(totalAlumnos.rows[0].count);
 
-        let equipoAsignado = "morado"; // default
+        let equipoAsignado = "morado";
 
-        // Alumno #1 → Morado
         if (total === 0) {
             equipoAsignado = "morado";
-        }
-        // Alumno #2 → Blanco
-        else if (total === 1) {
+        } else if (total === 1) {
             equipoAsignado = "blanco";
-        }
+        } else {
+            const nivelAlumno = nivel;
 
-        // 🔥 A partir del alumno Nº3 →
-        else {
-            const nivelAlumno = nivel; // principiante / basico / experto
-
-            // 2️⃣ Comparar cantidad del nivel EN CADA EQUIPO
             const countMoradoNivel = await pool.query(
                 "SELECT COUNT(*) FROM alumnos WHERE equipo = 'morado' AND nivel = $1",
                 [nivelAlumno]
@@ -91,15 +87,11 @@ router.post("/", async (req, res) => {
             const moradoNivel = Number(countMoradoNivel.rows[0].count);
             const blancoNivel = Number(countBlancoNivel.rows[0].count);
 
-            // 2A) Prioridad: equipo con MENOS del mismo nivel
             if (moradoNivel < blancoNivel) {
                 equipoAsignado = "morado";
             } else if (blancoNivel < moradoNivel) {
                 equipoAsignado = "blanco";
-            }
-
-            // 3️⃣ Si empatan en nivel → mirar TOTAL
-            else {
+            } else {
                 const countMoradoTotal = await pool.query(
                     "SELECT COUNT(*) FROM alumnos WHERE equipo = 'morado'"
                 );
@@ -114,52 +106,72 @@ router.post("/", async (req, res) => {
                     equipoAsignado = "morado";
                 } else if (blancoTotal < moradoTotal) {
                     equipoAsignado = "blanco";
-                }
-
-                // 4️⃣ Si también empatan → alternado POR NIVEL
-                else {
+                } else {
                     const countNivel = await pool.query(
                         "SELECT COUNT(*) FROM alumnos WHERE nivel = $1",
                         [nivelAlumno]
                     );
 
-                    const cantidadNivel = Number(countNivel.rows[0].count);
-
-                    equipoAsignado = (cantidadNivel % 2 === 0) ? "morado" : "blanco";
+                    equipoAsignado =
+                        Number(countNivel.rows[0].count) % 2 === 0
+                            ? "morado"
+                            : "blanco";
                 }
             }
         }
 
         // =======================================================
+        //  INSERT ALUMNO
+        // =======================================================
 
-        const query = `
+        const alumnoResult = await pool.query(
+            `
             INSERT INTO alumnos 
-            (nombre, apellido, dni, telefono, nivel, equipo, 
-            plan_eg, plan_personalizado, plan_running, 
-            dias_semana, dias_eg_pers, fecha_vencimiento, activo)
-            VALUES ($1, $2, $3, $4, $5, $6, 
-                    $7, $8, $9, 
-                    $10, $11, $12, 1)
+            (nombre, apellido, dni, telefono, nivel, equipo,
+             plan_eg, plan_personalizado, plan_running,
+             dias_semana, dias_eg_pers, fecha_vencimiento, activo)
+            VALUES
+            ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,1)
             RETURNING *;
-        `;
+            `,
+            [
+                nombre,
+                apellido,
+                dni,
+                telefono,
+                nivel,
+                equipoAsignado,
+                plan_eg,
+                plan_personalizado,
+                plan_running,
+                dias_semana,
+                dias_eg_pers,
+                fecha_vencimiento
+            ]
+        );
 
-        const values = [
-            nombre,
-            apellido,
-            dni,
-            telefono,
-            nivel,
-            equipoAsignado,
-            plan_eg,
-            plan_personalizado,
-            plan_running,
-            dias_semana,
-            dias_eg_pers,
-            fecha_vencimiento,
-        ];
+        const alumno = alumnoResult.rows[0];
 
-        const result = await pool.query(query, values);
-        res.json(result.rows[0]);
+        // =======================================================
+        //  💰 INSERT PAGO DE ALTA (CLAVE PARA ESTADÍSTICAS)
+        // =======================================================
+
+        if (monto && metodo_pago) {
+            await pool.query(
+                `
+                INSERT INTO pagos
+                (alumno_id, monto, metodo_pago, tipo)
+                VALUES ($1, $2, $3, 'alta')
+                `,
+                [
+                    alumno.id,
+                    Number(monto),
+                    metodo_pago
+                ]
+            );
+        }
+
+        res.json(alumno);
 
     } catch (error) {
         console.error("ERROR CREAR ALUMNO:", error);
@@ -186,7 +198,8 @@ router.put("/:id", async (req, res) => {
             dias_eg_pers,
         } = req.body;
 
-        const query = `
+        const result = await pool.query(
+            `
             UPDATE alumnos SET
                 nombre = $1,
                 apellido = $2,
@@ -201,24 +214,23 @@ router.put("/:id", async (req, res) => {
                 dias_eg_pers = $11
             WHERE id = $12
             RETURNING *;
-        `;
+            `,
+            [
+                nombre,
+                apellido,
+                dni,
+                telefono,
+                nivel,
+                fecha_vencimiento,
+                plan_eg,
+                plan_personalizado,
+                plan_running,
+                dias_semana,
+                dias_eg_pers,
+                req.params.id
+            ]
+        );
 
-        const values = [
-            nombre,
-            apellido,
-            dni,
-            telefono,
-            nivel,
-            fecha_vencimiento,
-            plan_eg,
-            plan_personalizado,
-            plan_running,
-            dias_semana,
-            dias_eg_pers,
-            req.params.id,
-        ];
-
-        const result = await pool.query(query, values);
         res.json(result.rows[0]);
 
     } catch (error) {
@@ -232,9 +244,10 @@ router.put("/:id", async (req, res) => {
 // ==========================
 router.delete("/:id", async (req, res) => {
     try {
-        await pool.query("DELETE FROM alumnos WHERE id = $1", [
-            req.params.id,
-        ]);
+        await pool.query(
+            "DELETE FROM alumnos WHERE id = $1",
+            [req.params.id]
+        );
         res.json({ success: true });
     } catch (error) {
         console.error("ERROR ELIMINAR ALUMNO:", error);
