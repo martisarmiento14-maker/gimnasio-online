@@ -93,15 +93,13 @@ router.get("/planes-dias", async (req, res) => {
 
         const query = `
             SELECT
-                SUM(CASE WHEN a.plan_eg = true AND a.dias_eg_pers = 3 THEN 1 ELSE 0 END) AS eg_3_dias,
-                SUM(CASE WHEN a.plan_eg = true AND a.dias_eg_pers = 5 THEN 1 ELSE 0 END) AS eg_5_dias,
+                SUM(CASE WHEN plan = 'eg' AND dias_por_semana = 3 THEN 1 ELSE 0 END) AS eg_3_dias,
+                SUM(CASE WHEN plan = 'eg' AND dias_por_semana = 5 THEN 1 ELSE 0 END) AS eg_5_dias,
 
-                SUM(CASE WHEN a.plan_personalizado = true AND a.dias_eg_pers = 3 THEN 1 ELSE 0 END) AS pers_3_dias,
-                SUM(CASE WHEN a.plan_personalizado = true AND a.dias_eg_pers = 5 THEN 1 ELSE 0 END) AS pers_5_dias
-            FROM pagos p
-            JOIN alumnos a ON a.id = p.alumno_id
-            WHERE to_char(p.fecha_pago, 'YYYY-MM') = $1
-              AND p.tipo IN ('alta', 'renovacion');
+                SUM(CASE WHEN plan = 'personalizado' AND dias_por_semana = 3 THEN 1 ELSE 0 END) AS pers_3_dias,
+                SUM(CASE WHEN plan = 'personalizado' AND dias_por_semana = 5 THEN 1 ELSE 0 END) AS pers_5_dias
+            FROM pagos
+            WHERE to_char(fecha_pago, 'YYYY-MM') = $1;
         `;
 
         const result = await db.query(query, [mes]);
@@ -113,6 +111,7 @@ router.get("/planes-dias", async (req, res) => {
         res.status(500).json({ error: "Error estadísticas planes-dias" });
     }
 });
+
 router.get("/ingresos", async (req, res) => {
     try {
         const { mes } = req.query;
