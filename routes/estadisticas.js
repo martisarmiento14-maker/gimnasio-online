@@ -4,15 +4,15 @@ import db from "../database/db.js";
 const router = express.Router();
 
 router.get("/", async (req, res) => {
-    const { mes } = req.query; // formato: YYYY-MM
+    const { mes } = req.query; // YYYY-MM
 
     if (!mes) {
         return res.status(400).json({ error: "Mes requerido" });
     }
 
     try {
-        const desde = `${mes}-01`;
-        const hasta = `${mes}-31`;
+        // inicio del mes
+        const inicioMes = `${mes}-01`;
 
         // ===============================
         // 1️⃣ ALTAS + RENOVACIONES
@@ -20,9 +20,10 @@ router.get("/", async (req, res) => {
         const totalAlumnos = await db.query(`
             SELECT tipo, COUNT(*)::int AS count
             FROM pagos
-            WHERE fecha_pago BETWEEN $1 AND $2
+            WHERE fecha_pago >= DATE_TRUNC('month', $1::date)
+              AND fecha_pago <  DATE_TRUNC('month', $1::date) + INTERVAL '1 month'
             GROUP BY tipo
-        `, [desde, hasta]);
+        `, [inicioMes]);
 
         // ===============================
         // 2️⃣ PLANES (ALTAS)
@@ -36,9 +37,10 @@ router.get("/", async (req, res) => {
             FROM alumnos a
             JOIN pagos p ON a.id = p.alumno_id
             WHERE p.tipo = 'alta'
-            AND p.fecha_pago BETWEEN $1 AND $2
+              AND p.fecha_pago >= DATE_TRUNC('month', $1::date)
+              AND p.fecha_pago <  DATE_TRUNC('month', $1::date) + INTERVAL '1 month'
             GROUP BY a.plan_eg, a.plan_personalizado, a.plan_running
-        `, [desde, hasta]);
+        `, [inicioMes]);
 
         // ===============================
         // 3️⃣ EG por días
@@ -66,9 +68,10 @@ router.get("/", async (req, res) => {
         const ingresos = await db.query(`
             SELECT metodo_pago, SUM(monto)::int AS sum
             FROM pagos
-            WHERE fecha_pago BETWEEN $1 AND $2
+            WHERE fecha_pago >= DATE_TRUNC('month', $1::date)
+              AND fecha_pago <  DATE_TRUNC('month', $1::date) + INTERVAL '1 month'
             GROUP BY metodo_pago
-        `, [desde, hasta]);
+        `, [inicioMes]);
 
         res.json({
             totalAlumnos: totalAlumnos.rows,
