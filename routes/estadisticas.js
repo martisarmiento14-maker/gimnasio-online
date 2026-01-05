@@ -5,7 +5,6 @@ const router = express.Router();
 
 /*
 GET /estadisticas?mes=YYYY-MM
-Ej: /estadisticas?mes=2026-01
 */
 router.get("/", async (req, res) => {
     try {
@@ -15,20 +14,33 @@ router.get("/", async (req, res) => {
             return res.status(400).json({ error: "Falta parámetro mes" });
         }
 
-        // Primer y último día del mes
         const fechaInicio = `${mes}-01`;
         const fechaFin = `${mes}-31`;
 
         const query = `
-            SELECT COUNT(DISTINCT id_alumno) AS total
-            FROM asistencias
-            WHERE fecha BETWEEN $1 AND $2
+            SELECT
+                tipo,
+                COUNT(DISTINCT alumno_id) AS cantidad
+            FROM pagos
+            WHERE fecha_pago BETWEEN $1 AND $2
+            GROUP BY tipo
         `;
 
         const result = await db.query(query, [fechaInicio, fechaFin]);
 
+        let altas = 0;
+        let renovaciones = 0;
+
+        result.rows.forEach(row => {
+            if (row.tipo === "alta") altas = Number(row.cantidad);
+            if (row.tipo === "renovacion") renovaciones = Number(row.cantidad);
+        });
+
         res.json({
-            total_alumnos_mes: Number(result.rows[0].total)
+            mes,
+            altas,
+            renovaciones,
+            total: altas + renovaciones
         });
 
     } catch (error) {
