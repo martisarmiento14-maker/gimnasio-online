@@ -24,7 +24,7 @@ router.get("/", async (req, res) => {
         a.plan_running,
         a.dias_eg_pers
       FROM pagos p
-      JOIN alumnos a ON a.id = p.alumno_id
+      JOIN alumnos a ON a.id = p.id_alumno
       WHERE EXTRACT(MONTH FROM p.fecha_pago) = $1
       AND EXTRACT(YEAR FROM p.fecha_pago) = $2
     `, [mes, anio]);
