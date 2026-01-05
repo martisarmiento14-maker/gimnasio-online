@@ -12,7 +12,7 @@ router.get("/", async (req, res) => {
         const query = `
             SELECT
                 tipo,
-                COUNT(DISTINCT alumno_id) AS cantidad
+                COUNT(DISTINCT id_alumno) AS cantidad
             FROM pagos
             WHERE fecha_pago IS NOT NULL
             AND tipo IS NOT NULL
@@ -34,8 +34,7 @@ router.get("/", async (req, res) => {
             mes,
             altas,
             renovaciones,
-            total: altas + renovaciones,
-            debug: result.rows
+            total: altas + renovaciones
         });
 
     } catch (error) {
@@ -46,6 +45,5 @@ router.get("/", async (req, res) => {
         });
     }
 });
-
 
 export default router;
