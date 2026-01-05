@@ -3,37 +3,31 @@ import db from "../database/db.js";
 
 const router = express.Router();
 
-/*
-GET /estadisticas?mes=YYYY-MM
-*/
 router.get("/", async (req, res) => {
     try {
         const { mes } = req.query;
-
         if (!mes) {
-            return res.status(400).json({ error: "Falta parámetro mes" });
+            return res.status(400).json({ error: "Falta mes" });
         }
-
-        const fechaInicio = `${mes}-01`;
-        const fechaFin = `${mes}-31`;
 
         const query = `
             SELECT
                 tipo,
                 COUNT(DISTINCT alumno_id) AS cantidad
             FROM pagos
-            WHERE fecha_pago BETWEEN $1 AND $2
+            WHERE fecha_pago IS NOT NULL
+            AND date_trunc('month', fecha_pago) = date_trunc('month', $1::date)
             GROUP BY tipo
         `;
 
-        const result = await db.query(query, [fechaInicio, fechaFin]);
+        const result = await db.query(query, [`${mes}-01`]);
 
         let altas = 0;
         let renovaciones = 0;
 
-        result.rows.forEach(row => {
-            if (row.tipo === "alta") altas = Number(row.cantidad);
-            if (row.tipo === "renovacion") renovaciones = Number(row.cantidad);
+        result.rows.forEach(r => {
+            if (r.tipo === "alta") altas = Number(r.cantidad);
+            if (r.tipo === "renovacion") renovaciones = Number(r.cantidad);
         });
 
         res.json({
@@ -44,7 +38,7 @@ router.get("/", async (req, res) => {
         });
 
     } catch (error) {
-        console.error("ERROR ESTADISTICAS:", error);
+        console.error("🔥 ERROR ESTADISTICAS:", error);
         res.status(500).json({ error: "Error estadísticas" });
     }
 });

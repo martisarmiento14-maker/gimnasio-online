@@ -160,8 +160,8 @@ router.post("/", async (req, res) => {
             await pool.query(
                 `
                 INSERT INTO pagos
-                (alumno_id, monto, metodo_pago, tipo)
-                VALUES ($1, $2, $3, 'alta')
+                (alumno_id, monto, metodo_pago,fecha_pago, tipo)
+                VALUES ($1, $2, $3, CURRENT_DATE, 'alta')
                 `,
                 [
                     alumno.id,
