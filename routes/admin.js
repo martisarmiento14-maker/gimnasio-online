@@ -94,47 +94,79 @@ router.delete("/:id", async (req, res) => {
     }
 });
 
-/*
-  GET /admin/estadisticas-finanzas?mes=03&anio=2026
-*/
+/* ======================================================
+   📊 ESTADÍSTICAS FINANZAS
+   ====================================================== */
 router.get("/estadisticas-finanzas", async (req, res) => {
     try {
         const { mes, anio } = req.query;
 
-        // INGRESOS
-        const ingresosResult = await pool.query(`
+        if (!mes || !anio) {
+            return res.status(400).json({ error: "Mes y año requeridos" });
+        }
+
+        /* ======================
+           INGRESOS POR MÉTODO
+        ====================== */
+        const ingresosQuery = `
             SELECT
                 COALESCE(SUM(CASE WHEN metodo_pago = 'efectivo' THEN monto ELSE 0 END), 0) AS efectivo,
                 COALESCE(SUM(CASE WHEN metodo_pago = 'transferencia' THEN monto ELSE 0 END), 0) AS transferencia
             FROM pagos
             WHERE EXTRACT(MONTH FROM fecha_pago) = $1
-            AND EXTRACT(YEAR FROM fecha_pago) = $2
-        `, [mes, anio]);
+              AND EXTRACT(YEAR FROM fecha_pago) = $2
+        `;
+        const ingresosRes = await db.query(ingresosQuery, [mes, anio]);
 
-        // PLANES
-        const planesResult = await pool.query(`
-            SELECT tipo, plan_eg, plan_personalizado, plan_running
+        /* ======================
+           PLANES (ALTAS / RENOVACIONES)
+        ====================== */
+        const planesBase = {
+            altas: { eg: 0, personalizado: 0, running: 0 },
+            renovaciones: { eg: 0, personalizado: 0, running: 0 }
+        };
+
+        const planesQuery = `
+            SELECT
+                p.tipo,
+                a.plan_eg,
+                a.plan_personalizado,
+                a.plan_running
             FROM pagos p
             JOIN alumnos a ON a.id = p.alumno_id
             WHERE EXTRACT(MONTH FROM p.fecha_pago) = $1
-            AND EXTRACT(YEAR FROM p.fecha_pago) = $2
-        `, [mes, anio]);
+              AND EXTRACT(YEAR FROM p.fecha_pago) = $2
+        `;
+        const planesRes = await db.query(planesQuery, [mes, anio]);
 
-        // EVOLUCIÓN (ejemplo simple)
-        const evolucionResult = await pool.query(`
+        planesRes.rows.forEach(r => {
+            const grupo = r.tipo === "alta" ? "altas" : "renovaciones";
+            if (r.plan_eg) planesBase[grupo].eg++;
+            if (r.plan_personalizado) planesBase[grupo].personalizado++;
+            if (r.plan_running) planesBase[grupo].running++;
+        });
+
+        /* ======================
+           EVOLUCIÓN MENSUAL
+        ====================== */
+        const evolucionQuery = `
             SELECT
                 TO_CHAR(fecha_pago, 'YYYY-MM') AS mes,
                 SUM(monto) AS ingresos,
-                COUNT(*) AS renovaciones
+                COUNT(*) AS movimientos
             FROM pagos
             GROUP BY mes
             ORDER BY mes
-        `);
+        `;
+        const evolucionRes = await db.query(evolucionQuery);
 
+        /* ======================
+           RESPUESTA FINAL
+        ====================== */
         res.json({
-            ingresos: ingresosResult.rows[0],   // 👈 SIEMPRE existe
-            planes: procesarPlanes(planesResult.rows),
-            evolucion: evolucionResult.rows
+            ingresos: ingresosRes.rows[0],
+            planes: planesBase,
+            evolucion: evolucionRes.rows
         });
 
     } catch (error) {
@@ -149,5 +181,6 @@ router.get("/estadisticas-finanzas", async (req, res) => {
         });
     }
 });
+
 
 export default router;
