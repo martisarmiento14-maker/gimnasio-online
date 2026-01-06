@@ -2,34 +2,32 @@ import express from "express";
 import db from "../database/db.js";
 
 const router = express.Router();
-
-// ===============================
-// 📊 ALTAS / RENOVACIONES POR MES
-// (según vencimiento)
-// ===============================
 router.get("/", async (req, res) => {
     try {
         const { mes } = req.query;
-        if (!mes) return res.status(400).json({ error: "Falta mes" });
+        if (!mes) {
+            return res.status(400).json({ error: "Falta mes" });
+        }
 
         const query = `
             SELECT
-                p.tipo,
-                COUNT(DISTINCT p.id_alumno) AS cantidad
-            FROM pagos p
-            JOIN alumnos a ON a.id = p.id_alumno
-            WHERE to_char(a.fecha_vencimiento, 'YYYY-MM') = $1
-            GROUP BY p.tipo
+                tipo,
+                COUNT(DISTINCT id_alumno) AS cantidad
+            FROM pagos
+            WHERE fecha_pago IS NOT NULL
+            AND tipo IS NOT NULL
+            AND date_trunc('month', fecha_pago) = date_trunc('month', $1::date)
+            GROUP BY tipo
         `;
 
-        const result = await db.query(query, [mes]);
+        const result = await db.query(query, [`${mes}-01`]);
 
         let altas = 0;
         let renovaciones = 0;
 
         result.rows.forEach(r => {
-            if (r.tipo === "alta") altas = Number(r.cantidad);
-            if (r.tipo === "renovacion") renovaciones = Number(r.cantidad);
+            if (r.tipo.toLowerCase() === "alta") altas = Number(r.cantidad);
+            if (r.tipo.toLowerCase() === "renovacion") renovaciones = Number(r.cantidad);
         });
 
         res.json({
@@ -40,25 +38,22 @@ router.get("/", async (req, res) => {
         });
 
     } catch (error) {
-        console.error("ERROR ESTADISTICAS:", error);
-        res.status(500).json({ error: "Error estadísticas" });
+        console.error("🔥 ERROR ESTADISTICAS:", error);
+        res.status(500).json({
+            error: "Error estadísticas",
+            detalle: error.message
+        });
     }
 });
-
-// ===============================
-// 💪 PLANES DEL MES
-// (según vencimiento)
-// ===============================
 router.get("/planes", async (req, res) => {
     try {
         const { mes } = req.query;
 
         const query = `
-            SELECT p.plan
-            FROM pagos p
-            JOIN alumnos a ON a.id = p.id_alumno
-            WHERE to_char(a.fecha_vencimiento, 'YYYY-MM') = $1
-            AND p.plan IS NOT NULL
+            SELECT plan
+            FROM pagos
+            WHERE to_char(fecha_pago, 'YYYY-MM') = $1
+            AND plan IS NOT NULL
         `;
 
         const result = await db.query(query, [mes]);
@@ -87,24 +82,22 @@ router.get("/planes", async (req, res) => {
     }
 });
 
-// ======================================
-// 📅 PLAN EG / PERSONALIZADO – DÍAS
-// (según vencimiento)
-// ======================================
+
 router.get("/planes-dias", async (req, res) => {
     try {
         const { mes } = req.query;
 
         const query = `
             SELECT
-                SUM(CASE WHEN p.plan = 'eg' AND a.dias_eg_pers = 3 THEN 1 ELSE 0 END) AS eg_3_dias,
-                SUM(CASE WHEN p.plan = 'eg' AND a.dias_eg_pers = 5 THEN 1 ELSE 0 END) AS eg_5_dias,
+                SUM(CASE WHEN plan = 'eg' AND dias_por_semana = 3 THEN 1 ELSE 0 END) AS eg_3_dias,
+                SUM(CASE WHEN plan = 'eg' AND dias_por_semana = 5 THEN 1 ELSE 0 END) AS eg_5_dias,
 
-                SUM(CASE WHEN p.plan = 'personalizado' AND a.dias_eg_pers = 3 THEN 1 ELSE 0 END) AS pers_3_dias,
-                SUM(CASE WHEN p.plan = 'personalizado' AND a.dias_eg_pers = 5 THEN 1 ELSE 0 END) AS pers_5_dias
-            FROM pagos p
-            JOIN alumnos a ON a.id = p.id_alumno
-            WHERE to_char(a.fecha_vencimiento, 'YYYY-MM') = $1
+                SUM(CASE WHEN plan = 'personalizado' AND dias_por_semana = 3 THEN 1 ELSE 0 END) AS pers_3_dias,
+                SUM(CASE WHEN plan = 'personalizado' AND dias_por_semana = 5 THEN 1 ELSE 0 END) AS pers_5_dias
+            FROM pagos
+            WHERE to_char(fecha_pago, 'YYYY-MM') = $1
+            AND plan IS NOT NULL
+            AND dias_por_semana IS NOT NULL
         `;
 
         const result = await db.query(query, [mes]);
@@ -117,10 +110,7 @@ router.get("/planes-dias", async (req, res) => {
     }
 });
 
-// ===============================
-// 💰 INGRESOS DEL MES
-// (según fecha de pago)
-// ===============================
+
 router.get("/ingresos", async (req, res) => {
     try {
         const { mes } = req.query;
@@ -143,12 +133,10 @@ router.get("/ingresos", async (req, res) => {
         };
 
         result.rows.forEach(r => {
-            if (r.metodo_pago === "efectivo" || r.metodo_pago === "transferencia") {
-                data[r.metodo_pago] = {
-                    total: Number(r.total),
-                    personas: Number(r.personas)
-                };
-            }
+            data[r.metodo_pago] = {
+                total: Number(r.total),
+                personas: Number(r.personas)
+            };
         });
 
         res.json(data);
@@ -158,5 +146,8 @@ router.get("/ingresos", async (req, res) => {
         res.status(500).json({ error: "Error estadísticas ingresos" });
     }
 });
+
+
+
 
 export default router;
