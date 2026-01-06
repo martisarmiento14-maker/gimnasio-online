@@ -158,15 +158,5 @@ router.get("/ingresos", async (req, res) => {
         res.status(500).json({ error: "Error estadísticas ingresos" });
     }
 });
-async function cargarGraficoAltas(mes) {
-    try {
-        const res = await fetch(`${API_URL}/estadisticas?mes=${mes}`);
-        const data = await res.json();
-        ...
-    } catch (error) {
-        console.error("Error gráfico altas", error);
-    }
-}
-
 
 export default router;
