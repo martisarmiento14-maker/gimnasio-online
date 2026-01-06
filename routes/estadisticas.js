@@ -68,16 +68,16 @@ router.get("/planes", async (req, res) => {
             personalizado: 0,
             eg: 0,
             running: 0,
-            combo1: 0,
-            combo2: 0
+            mma: 0
         };
 
         result.rows.forEach(r => {
-            if (r.plan === "personalizado") conteo.personalizado++;
-            else if (r.plan === "eg") conteo.eg++;
-            else if (r.plan === "running") conteo.running++;
-            else if (r.plan === "personalizado+running") conteo.combo1++;
-            else if (r.plan === "eg+running") conteo.combo2++;
+            const plan = r.plan;
+
+            if (plan.includes("personalizado")) conteo.personalizado++;
+            if (plan.includes("eg")) conteo.eg++;
+            if (plan.includes("running")) conteo.running++;
+            if (plan.includes("mma")) conteo.mma++;
         });
 
         res.json(conteo);
