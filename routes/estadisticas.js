@@ -5,7 +5,7 @@ const router = express.Router();
 
 // ===============================
 // 📊 ALTAS / RENOVACIONES POR MES
-// (según vencimiento)
+// (mes del pago → vencimiento mes siguiente)
 // ===============================
 router.get("/", async (req, res) => {
     try {
@@ -18,7 +18,7 @@ router.get("/", async (req, res) => {
                 COUNT(DISTINCT p.id_alumno) AS cantidad
             FROM pagos p
             JOIN alumnos a ON a.id = p.id_alumno
-            WHERE to_char(a.fecha_vencimiento, 'YYYY-MM') = $1
+            WHERE to_char(a.fecha_vencimiento - interval '1 month', 'YYYY-MM') = $1
             GROUP BY p.tipo
         `;
 
@@ -47,17 +47,18 @@ router.get("/", async (req, res) => {
 
 // ===============================
 // 💪 PLANES DEL MES
-// (según vencimiento)
+// (según vencimiento - 1 mes)
 // ===============================
 router.get("/planes", async (req, res) => {
     try {
         const { mes } = req.query;
+        if (!mes) return res.status(400).json({ error: "Falta mes" });
 
         const query = `
             SELECT p.plan
             FROM pagos p
             JOIN alumnos a ON a.id = p.id_alumno
-            WHERE to_char(a.fecha_vencimiento, 'YYYY-MM') = $1
+            WHERE to_char(a.fecha_vencimiento - interval '1 month', 'YYYY-MM') = $1
             AND p.plan IS NOT NULL
         `;
 
@@ -89,11 +90,12 @@ router.get("/planes", async (req, res) => {
 
 // ======================================
 // 📅 PLAN EG / PERSONALIZADO – DÍAS
-// (según vencimiento)
+// (según vencimiento - 1 mes)
 // ======================================
 router.get("/planes-dias", async (req, res) => {
     try {
         const { mes } = req.query;
+        if (!mes) return res.status(400).json({ error: "Falta mes" });
 
         const query = `
             SELECT
@@ -104,12 +106,17 @@ router.get("/planes-dias", async (req, res) => {
                 SUM(CASE WHEN p.plan = 'personalizado' AND a.dias_eg_pers = 5 THEN 1 ELSE 0 END) AS pers_5_dias
             FROM pagos p
             JOIN alumnos a ON a.id = p.id_alumno
-            WHERE to_char(a.fecha_vencimiento, 'YYYY-MM') = $1
+            WHERE to_char(a.fecha_vencimiento - interval '1 month', 'YYYY-MM') = $1
         `;
 
         const result = await db.query(query, [mes]);
 
-        res.json(result.rows[0]);
+        res.json(result.rows[0] || {
+            eg_3_dias: 0,
+            eg_5_dias: 0,
+            pers_3_dias: 0,
+            pers_5_dias: 0
+        });
 
     } catch (error) {
         console.error("ERROR PLANES-DIAS:", error);
@@ -119,11 +126,12 @@ router.get("/planes-dias", async (req, res) => {
 
 // ===============================
 // 💰 INGRESOS DEL MES
-// (según fecha de pago)
+// (según FECHA DE PAGO)
 // ===============================
 router.get("/ingresos", async (req, res) => {
     try {
         const { mes } = req.query;
+        if (!mes) return res.status(400).json({ error: "Falta mes" });
 
         const query = `
             SELECT
@@ -143,7 +151,7 @@ router.get("/ingresos", async (req, res) => {
         };
 
         result.rows.forEach(r => {
-            if (r.metodo_pago === "efectivo" || r.metodo_pago === "transferencia") {
+            if (data[r.metodo_pago]) {
                 data[r.metodo_pago] = {
                     total: Number(r.total),
                     personas: Number(r.personas)
