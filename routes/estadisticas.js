@@ -55,11 +55,15 @@ router.get("/planes", async (req, res) => {
         if (!mes) return res.status(400).json({ error: "Falta mes" });
 
         const query = `
-            SELECT p.plan
+            SELECT
+                p.plan,
+                COUNT(DISTINCT p.id_alumno) AS cantidad
             FROM pagos p
-            JOIN alumnos a ON a.id = p.id_alumno
-            WHERE to_char(a.fecha_vencimiento - interval '1 month', 'YYYY-MM') = $1
-            AND p.plan IS NOT NULL
+            WHERE
+                to_char(p.fecha_pago, 'YYYY-MM') = $1
+                AND p.plan IS NOT NULL
+            GROUP BY p.plan
+
         `;
 
         const result = await db.query(query, [mes]);
@@ -119,37 +123,62 @@ router.get("/planes", async (req, res) => {
 // 📅 PLAN EG / PERSONALIZADO – DÍAS
 // (según vencimiento - 1 mes)
 // ======================================
-router.get("/planes-dias", async (req, res) => {
+router.get("/planes", async (req, res) => {
     try {
         const { mes } = req.query;
         if (!mes) return res.status(400).json({ error: "Falta mes" });
 
         const query = `
             SELECT
-                SUM(CASE WHEN p.plan = 'eg' AND a.dias_eg_pers = 3 THEN 1 ELSE 0 END) AS eg_3_dias,
-                SUM(CASE WHEN p.plan = 'eg' AND a.dias_eg_pers = 5 THEN 1 ELSE 0 END) AS eg_5_dias,
-
-                SUM(CASE WHEN p.plan = 'personalizado' AND a.dias_eg_pers = 3 THEN 1 ELSE 0 END) AS pers_3_dias,
-                SUM(CASE WHEN p.plan = 'personalizado' AND a.dias_eg_pers = 5 THEN 1 ELSE 0 END) AS pers_5_dias
+                p.plan,
+                COUNT(DISTINCT p.id_alumno) AS cantidad
             FROM pagos p
-            JOIN alumnos a ON a.id = p.id_alumno
-            WHERE to_char(a.fecha_vencimiento - interval '1 month', 'YYYY-MM') = $1
+            WHERE
+                to_char(p.fecha_pago, 'YYYY-MM') = $1
+                AND p.plan IS NOT NULL
+            GROUP BY p.plan
         `;
 
         const result = await db.query(query, [mes]);
 
-        res.json(result.rows[0] || {
-            eg_3_dias: 0,
-            eg_5_dias: 0,
-            pers_3_dias: 0,
-            pers_5_dias: 0
+        const stats = {
+            eg: 0,
+            personalizado: 0,
+            running: 0,
+            mma: 0,
+            running_eg: 0,
+            running_personalizado: 0,
+            mma_eg: 0,
+            mma_personalizado: 0,
+            mma_running_eg: 0,
+            mma_running_personalizado: 0
+        };
+
+        result.rows.forEach(({ plan, cantidad }) => {
+            const p = plan.split("+").sort().join("+");
+
+            if (p === "eg") stats.eg += Number(cantidad);
+            if (p === "personalizado") stats.personalizado += Number(cantidad);
+            if (p === "running") stats.running += Number(cantidad);
+            if (p === "mma") stats.mma += Number(cantidad);
+
+            if (p === "eg+running") stats.running_eg += Number(cantidad);
+            if (p === "personalizado+running") stats.running_personalizado += Number(cantidad);
+            if (p === "eg+mma") stats.mma_eg += Number(cantidad);
+            if (p === "mma+personalizado") stats.mma_personalizado += Number(cantidad);
+
+            if (p === "eg+mma+running") stats.mma_running_eg += Number(cantidad);
+            if (p === "mma+personalizado+running") stats.mma_running_personalizado += Number(cantidad);
         });
 
+        res.json(stats);
+
     } catch (error) {
-        console.error("ERROR PLANES-DIAS:", error);
-        res.status(500).json({ error: "Error estadísticas planes-dias" });
+        console.error("ERROR PLANES:", error);
+        res.status(500).json({ error: "Error estadísticas planes" });
     }
 });
+
 
 // ===============================
 // 💰 INGRESOS DEL MES
