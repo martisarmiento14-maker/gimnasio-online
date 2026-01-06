@@ -17,8 +17,7 @@ router.get("/", async (req, res) => {
                 p.tipo,
                 COUNT(DISTINCT p.id_alumno) AS cantidad
             FROM pagos p
-            JOIN alumnos a ON a.id = p.id_alumno
-            WHERE to_char(a.fecha_vencimiento - interval '1 month', 'YYYY-MM') = $1
+            WHERE to_char(p.fecha_pago, 'YYYY-MM') = $1
             GROUP BY p.tipo
         `;
 
@@ -45,6 +44,7 @@ router.get("/", async (req, res) => {
     }
 });
 
+
 // ===============================
 // 💪 PLANES DEL MES
 // (según vencimiento - 1 mes)
@@ -64,29 +64,56 @@ router.get("/planes", async (req, res) => {
 
         const result = await db.query(query, [mes]);
 
-        const conteo = {
-            personalizado: 0,
+        const stats = {
+            // individuales
             eg: 0,
+            personalizado: 0,
             running: 0,
-            mma: 0
+            mma: 0,
+
+            // combos
+            running_eg: 0,
+            running_personalizado: 0,
+            mma_eg: 0,
+            mma_personalizado: 0,
+            mma_running_eg: 0,
+            mma_running_personalizado: 0
         };
 
-        result.rows.forEach(r => {
-            const plan = r.plan;
+        result.rows.forEach(({ plan }) => {
+            const p = plan.split("+").sort().join("+");
 
-            if (plan.includes("personalizado")) conteo.personalizado++;
-            if (plan.includes("eg")) conteo.eg++;
-            if (plan.includes("running")) conteo.running++;
-            if (plan.includes("mma")) conteo.mma++;
+            // =====================
+            // INDIVIDUALES
+            // =====================
+            if (p === "eg") stats.eg++;
+            if (p === "personalizado") stats.personalizado++;
+            if (p === "running") stats.running++;
+            if (p === "mma") stats.mma++;
+
+            // =====================
+            // COMBOS DOBLES
+            // =====================
+            if (p === "eg+running") stats.running_eg++;
+            if (p === "personalizado+running") stats.running_personalizado++;
+            if (p === "eg+mma") stats.mma_eg++;
+            if (p === "mma+personalizado") stats.mma_personalizado++;
+
+            // =====================
+            // COMBOS TRIPLES
+            // =====================
+            if (p === "eg+mma+running") stats.mma_running_eg++;
+            if (p === "mma+personalizado+running") stats.mma_running_personalizado++;
         });
 
-        res.json(conteo);
+        res.json(stats);
 
     } catch (error) {
         console.error("ERROR PLANES:", error);
         res.status(500).json({ error: "Error estadísticas planes" });
     }
 });
+
 
 // ======================================
 // 📅 PLAN EG / PERSONALIZADO – DÍAS
