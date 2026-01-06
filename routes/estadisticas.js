@@ -52,7 +52,7 @@ router.get("/planes", async (req, res) => {
         const query = `
             SELECT plan
             FROM pagos
-            WHERE to_char(a.fecha_vencimiento, 'YYYY-MM') = $1
+            WHERE to_char(fecha_pago, 'YYYY-MM') = $1
             AND plan IS NOT NULL
         `;
 
@@ -95,7 +95,7 @@ router.get("/planes-dias", async (req, res) => {
                 SUM(CASE WHEN plan = 'personalizado' AND dias_por_semana = 3 THEN 1 ELSE 0 END) AS pers_3_dias,
                 SUM(CASE WHEN plan = 'personalizado' AND dias_por_semana = 5 THEN 1 ELSE 0 END) AS pers_5_dias
             FROM pagos
-            WHERE to_char(a.fecha_vencimiento, 'YYYY-MM') = $1
+            WHERE to_char(fecha_pago, 'YYYY-MM') = $1
             AND plan IS NOT NULL
             AND dias_por_semana IS NOT NULL
         `;
@@ -121,7 +121,7 @@ router.get("/ingresos", async (req, res) => {
                 SUM(monto) AS total,
                 COUNT(*) AS personas
             FROM pagos
-            WHERE to_char(a.fecha_vencimiento, 'YYYY-MM') = $1
+            WHERE to_char(fecha_pago, 'YYYY-MM') = $1
             GROUP BY metodo_pago
         `;
 
