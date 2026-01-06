@@ -8,7 +8,9 @@ const router = express.Router();
 // ==========================
 router.get("/", async (req, res) => {
     try {
-        const result = await pool.query("SELECT * FROM alumnos ORDER BY id ASC");
+        const result = await pool.query(
+            "SELECT * FROM alumnos ORDER BY id ASC"
+        );
         res.json(result.rows);
     } catch (error) {
         console.error("ERROR LISTAR ALUMNOS:", error);
@@ -38,7 +40,7 @@ router.get("/:id", async (req, res) => {
 });
 
 // ==========================
-//  POST - CREAR ALUMNO + PAGO ALTA
+//  POST - CREAR ALUMNO
 // ==========================
 router.post("/", async (req, res) => {
     try {
@@ -52,86 +54,64 @@ router.post("/", async (req, res) => {
             plan_eg,
             plan_personalizado,
             plan_running,
+            plan_mma,
             dias_semana,
-            dias_eg_pers,
-            // 👇 VIENEN DEL FORM DE ALTA
-            monto,
-            metodo_pago
+            dias_eg_pers
         } = req.body;
 
-        // =======================================================
-        //   📌 ASIGNACIÓN DE EQUIPO (TU LÓGICA ORIGINAL)
-        // =======================================================
-
-        const totalAlumnos = await pool.query("SELECT COUNT(*) FROM alumnos");
+        // ==========================
+        //  ASIGNACIÓN DE EQUIPO
+        // ==========================
+        const totalAlumnos = await pool.query(
+            "SELECT COUNT(*) FROM alumnos"
+        );
         const total = Number(totalAlumnos.rows[0].count);
 
         let equipoAsignado = "morado";
 
-        if (total === 0) {
-            equipoAsignado = "morado";
-        } else if (total === 1) {
-            equipoAsignado = "blanco";
-        } else {
+        if (total > 1) {
             const nivelAlumno = nivel;
 
-            const countMoradoNivel = await pool.query(
+            const moradoNivel = await pool.query(
                 "SELECT COUNT(*) FROM alumnos WHERE equipo = 'morado' AND nivel = $1",
                 [nivelAlumno]
             );
-            const countBlancoNivel = await pool.query(
+            const blancoNivel = await pool.query(
                 "SELECT COUNT(*) FROM alumnos WHERE equipo = 'blanco' AND nivel = $1",
                 [nivelAlumno]
             );
 
-            const moradoNivel = Number(countMoradoNivel.rows[0].count);
-            const blancoNivel = Number(countBlancoNivel.rows[0].count);
-
-            if (moradoNivel < blancoNivel) {
-                equipoAsignado = "morado";
-            } else if (blancoNivel < moradoNivel) {
+            if (Number(moradoNivel.rows[0].count) > Number(blancoNivel.rows[0].count)) {
                 equipoAsignado = "blanco";
-            } else {
-                const countMoradoTotal = await pool.query(
-                    "SELECT COUNT(*) FROM alumnos WHERE equipo = 'morado'"
-                );
-                const countBlancoTotal = await pool.query(
-                    "SELECT COUNT(*) FROM alumnos WHERE equipo = 'blanco'"
-                );
-
-                const moradoTotal = Number(countMoradoTotal.rows[0].count);
-                const blancoTotal = Number(countBlancoTotal.rows[0].count);
-
-                if (moradoTotal < blancoTotal) {
-                    equipoAsignado = "morado";
-                } else if (blancoTotal < moradoTotal) {
-                    equipoAsignado = "blanco";
-                } else {
-                    const countNivel = await pool.query(
-                        "SELECT COUNT(*) FROM alumnos WHERE nivel = $1",
-                        [nivelAlumno]
-                    );
-
-                    equipoAsignado =
-                        Number(countNivel.rows[0].count) % 2 === 0
-                            ? "morado"
-                            : "blanco";
-                }
             }
         }
 
-        // =======================================================
+        // ==========================
         //  INSERT ALUMNO
-        // =======================================================
-
+        // ==========================
         const alumnoResult = await pool.query(
             `
-            INSERT INTO alumnos 
-            (nombre, apellido, dni, telefono, nivel, equipo,
-             plan_eg, plan_personalizado, plan_running,
-             dias_semana, dias_eg_pers, fecha_vencimiento, activo)
-            VALUES
-            ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,1)
+            INSERT INTO alumnos (
+                nombre,
+                apellido,
+                dni,
+                telefono,
+                nivel,
+                equipo,
+                plan_eg,
+                plan_personalizado,
+                plan_running,
+                plan_mma,
+                dias_semana,
+                dias_eg_pers,
+                fecha_vencimiento,
+                activo
+            )
+            VALUES (
+                $1,$2,$3,$4,$5,$6,
+                $7,$8,$9,$10,
+                $11,$12,$13,1
+            )
             RETURNING *;
             `,
             [
@@ -144,34 +124,14 @@ router.post("/", async (req, res) => {
                 plan_eg,
                 plan_personalizado,
                 plan_running,
+                plan_mma,
                 dias_semana,
                 dias_eg_pers,
                 fecha_vencimiento
             ]
         );
 
-        const alumno = alumnoResult.rows[0];
-
-        // =======================================================
-        //  💰 INSERT PAGO DE ALTA (CLAVE PARA ESTADÍSTICAS)
-        // =======================================================
-
-        if (monto && metodo_pago) {
-            await pool.query(
-                `
-                INSERT INTO pagos
-                (id_alumno, monto, metodo_pago,fecha_pago, tipo)
-                VALUES ($1, $2, $3, CURRENT_DATE, 'alta')
-                `,
-                [
-                    alumno.id,
-                    Number(monto),
-                    metodo_pago
-                ]
-            );
-        }
-
-        res.json(alumno);
+        res.json(alumnoResult.rows[0]);
 
     } catch (error) {
         console.error("ERROR CREAR ALUMNO:", error);
@@ -194,8 +154,9 @@ router.put("/:id", async (req, res) => {
             plan_eg,
             plan_personalizado,
             plan_running,
+            plan_mma,
             dias_semana,
-            dias_eg_pers,
+            dias_eg_pers
         } = req.body;
 
         const result = await pool.query(
@@ -210,9 +171,10 @@ router.put("/:id", async (req, res) => {
                 plan_eg = $7,
                 plan_personalizado = $8,
                 plan_running = $9,
-                dias_semana = $10,
-                dias_eg_pers = $11
-            WHERE id = $12
+                plan_mma = $10,
+                dias_semana = $11,
+                dias_eg_pers = $12
+            WHERE id = $13
             RETURNING *;
             `,
             [
@@ -225,6 +187,7 @@ router.put("/:id", async (req, res) => {
                 plan_eg,
                 plan_personalizado,
                 plan_running,
+                plan_mma,
                 dias_semana,
                 dias_eg_pers,
                 req.params.id
