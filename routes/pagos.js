@@ -50,6 +50,7 @@ router.post("/", async (req, res) => {
                 INSERT INTO membresias
                 (id_alumno, periodo_mes, tipo, plan, dias_por_semana)
                 VALUES ($1, $2, $3, $4, $5)
+                ON CONFLICT (id_alumno, periodo_mes) DO NOTHING
                 `,
                 [
                     id_alumno,
