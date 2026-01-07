@@ -184,4 +184,5 @@ router.get("/ingresos", async (req, res) => {
   }
 });
 
+
 export default router;
