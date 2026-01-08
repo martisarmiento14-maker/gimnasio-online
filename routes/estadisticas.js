@@ -41,5 +41,93 @@ router.get("/", async (req, res) => {
         });
     }
 });
+router.get("/altas", async (req, res) => {
+  const { mes } = req.query;
+
+  const result = await db.query(`
+    SELECT tipo, COUNT(*) cantidad
+    FROM pagos
+    WHERE TO_CHAR(fecha_pago, 'YYYY-MM') = $1
+    GROUP BY tipo
+  `, [mes]);
+
+  let altas = 0;
+  let renovaciones = 0;
+
+  result.rows.forEach(r => {
+    if (r.tipo === "alta") altas = Number(r.cantidad);
+    if (r.tipo === "renovacion") renovaciones = Number(r.cantidad);
+  });
+
+  res.json({
+    mes,
+    altas,
+    renovaciones,
+    total: altas + renovaciones
+  });
+});
+router.get("/planes", async (req, res) => {
+  const { mes } = req.query;
+
+  const result = await db.query(`
+    SELECT plan, COUNT(*) cantidad
+    FROM membresias
+    WHERE periodo_mes = $1
+    GROUP BY plan
+  `, [mes]);
+
+  const data = {};
+  result.rows.forEach(r => data[r.plan] = Number(r.cantidad));
+
+  res.json(data);
+});
+router.get("/planes-dias", async (req, res) => {
+  const { mes } = req.query;
+
+  const result = await db.query(`
+    SELECT plan, dias_por_semana, COUNT(*) cantidad
+    FROM membresias
+    WHERE periodo_mes = $1
+    GROUP BY plan, dias_por_semana
+  `, [mes]);
+
+  const data = {
+    eg_3_dias: 0,
+    eg_5_dias: 0,
+    pers_3_dias: 0,
+    pers_5_dias: 0
+  };
+
+  result.rows.forEach(r => {
+    if (r.plan === "eg" && r.dias_por_semana === 3) data.eg_3_dias = r.cantidad;
+    if (r.plan === "eg" && r.dias_por_semana === 5) data.eg_5_dias = r.cantidad;
+    if (r.plan === "personalizado" && r.dias_por_semana === 3) data.pers_3_dias = r.cantidad;
+    if (r.plan === "personalizado" && r.dias_por_semana === 5) data.pers_5_dias = r.cantidad;
+  });
+
+  res.json(data);
+});
+router.get("/ingresos", async (req, res) => {
+  const { mes } = req.query;
+
+  const result = await db.query(`
+    SELECT metodo_pago, SUM(monto) total
+    FROM pagos
+    WHERE TO_CHAR(fecha_pago, 'YYYY-MM') = $1
+    GROUP BY metodo_pago
+  `, [mes]);
+
+  const data = {
+    efectivo: { total: 0 },
+    transferencia: { total: 0 }
+  };
+
+  result.rows.forEach(r => {
+    data[r.metodo_pago] = { total: Number(r.total) };
+  });
+
+  res.json(data);
+});
+
 
 export default router;
