@@ -41,31 +41,57 @@ router.get("/", async (req, res) => {
         });
     }
 });
+// ==========================
+// 📊 ALTAS vs RENOVACIONES (REAL)
+// ==========================
 router.get("/altas", async (req, res) => {
-  const { mes } = req.query;
+    const { mes } = req.query;
 
-  const result = await db.query(`
-    SELECT tipo, COUNT(*) cantidad
-    FROM pagos
-    WHERE TO_CHAR(fecha_pago, 'YYYY-MM') = $1
-    GROUP BY tipo
-  `, [mes]);
+    if (!mes) {
+        return res.status(400).json({ error: "mes requerido (YYYY-MM)" });
+    }
 
-  let altas = 0;
-  let renovaciones = 0;
+    try {
+        // 1️⃣ Total alumnos activos ese mes
+        const totalResult = await db.query(
+            `
+            SELECT COUNT(DISTINCT id_alumno) AS total
+            FROM membresias
+            WHERE periodo_mes = $1
+            `,
+            [mes]
+        );
 
-  result.rows.forEach(r => {
-    if (r.tipo === "alta") altas = Number(r.cantidad);
-    if (r.tipo === "renovacion") renovaciones = Number(r.cantidad);
-  });
+        // 2️⃣ Altas: primera vez que el alumno aparece
+        const altasResult = await db.query(
+            `
+            SELECT COUNT(*) AS altas
+            FROM (
+                SELECT id_alumno, MIN(periodo_mes) AS primer_mes
+                FROM membresias
+                GROUP BY id_alumno
+            ) t
+            WHERE primer_mes = $1
+            `,
+            [mes]
+        );
 
-  res.json({
-    mes,
-    altas,
-    renovaciones,
-    total: altas + renovaciones
-  });
+        const total = Number(totalResult.rows[0].total);
+        const altas = Number(altasResult.rows[0].altas);
+        const renovaciones = total - altas;
+
+        res.json({
+            altas,
+            renovaciones,
+            total
+        });
+
+    } catch (error) {
+        console.error("ERROR ALTAS:", error);
+        res.status(500).json({ error: "Error estadísticas altas" });
+    }
 });
+
 router.get("/planes", async (req, res) => {
   const { mes } = req.query;
 
