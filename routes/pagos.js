@@ -36,6 +36,8 @@ router.post("/", async (req, res) => {
 
         if (fechaVencimiento && new Date(fechaVencimiento) > hoy) {
             inicio = new Date(fechaVencimiento);
+            inicio.setMonth(inicio.getMonth() + 1);
+
         } else {
             inicio = hoy;
         }
