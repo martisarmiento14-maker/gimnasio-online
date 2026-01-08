@@ -17,7 +17,7 @@ router.post("/", async (req, res) => {
 
     try {
         // ===============================
-        // 1️⃣ TRAER FECHA VENCIMIENTO
+        // 1️⃣ TRAER FECHA DE VENCIMIENTO
         // ===============================
         const alumnoRes = await db.query(
             `SELECT fecha_vencimiento FROM alumnos WHERE id = $1`,
@@ -29,30 +29,26 @@ router.post("/", async (req, res) => {
         }
 
         const fechaVencimiento = alumnoRes.rows[0].fecha_vencimiento;
-        const hoy = new Date();
 
-        // 👉 fecha base = la más grande
-        let inicio;
-
-        if (fechaVencimiento && new Date(fechaVencimiento) > hoy) {
-            inicio = new Date(fechaVencimiento);
-            inicio.setMonth(inicio.getMonth() + 1);
-
-        } else {
-            inicio = hoy;
+        if (!fechaVencimiento) {
+            return res.status(400).json({
+                error: "Alumno sin fecha de vencimiento"
+            });
         }
 
-        inicio.setDate(1); // 🔒 evita saltos de mes
+        // 👉 MES SIGUIENTE AL VENCIMIENTO
+        const inicio = new Date(fechaVencimiento);
+        inicio.setMonth(inicio.getMonth() + 1);
+        inicio.setDate(1);
 
         // ===============================
-        // 2️⃣ REGISTRAR PAGO (1 SOLA VEZ)
+        // 2️⃣ REGISTRAR EL PAGO (1 VEZ)
         // ===============================
-        const pagoResult = await db.query(
+        await db.query(
             `
             INSERT INTO pagos
             (id_alumno, monto, metodo_pago, fecha_pago, tipo, plan, dias_por_semana)
             VALUES ($1, $2, $3, CURRENT_DATE, $4, $5, $6)
-            RETURNING id
             `,
             [
                 id_alumno,
@@ -101,3 +97,4 @@ router.post("/", async (req, res) => {
 });
 
 export default router;
+

@@ -15,7 +15,7 @@ export default function generarMeses(fechaBase, cantidadMeses = 1) {
         throw new Error("Fecha base inválida");
     }
 
-    // 🔒 Evita saltos de mes por timezone
+    // 🔒 Siempre el primer día del mes
     fecha.setDate(1);
 
     const meses = [];
