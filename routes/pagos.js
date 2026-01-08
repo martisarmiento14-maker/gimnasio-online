@@ -3,6 +3,7 @@ import db from "../database/db.js";
 import generarMeses from "./generarMeses.js";
 
 const router = express.Router();
+
 router.post("/", async (req, res) => {
     const {
         id_alumno,
@@ -15,24 +16,35 @@ router.post("/", async (req, res) => {
     } = req.body;
 
     try {
-
-        // =====================================
-        // 1️⃣ TRAER FECHA DE VENCIMIENTO REAL
-        // =====================================
-        const alumno = await db.query(
+        // ===============================
+        // 1️⃣ TRAER FECHA VENCIMIENTO
+        // ===============================
+        const alumnoRes = await db.query(
             `SELECT fecha_vencimiento FROM alumnos WHERE id = $1`,
             [id_alumno]
         );
 
-        if (alumno.rows.length === 0) {
+        if (alumnoRes.rows.length === 0) {
             return res.status(404).json({ error: "Alumno no existe" });
         }
 
-        const fechaVencimiento = alumno.rows[0].fecha_vencimiento;
+        const fechaVencimiento = alumnoRes.rows[0].fecha_vencimiento;
+        const hoy = new Date();
 
-        // =====================================
-        // 2️⃣ REGISTRAR EL PAGO (UNA SOLA VEZ)
-        // =====================================
+        // 👉 fecha base = la más grande
+        let inicio;
+
+        if (fechaVencimiento && new Date(fechaVencimiento) > hoy) {
+            inicio = new Date(fechaVencimiento);
+        } else {
+            inicio = hoy;
+        }
+
+        inicio.setDate(1); // 🔒 evita saltos de mes
+
+        // ===============================
+        // 2️⃣ REGISTRAR PAGO (1 SOLA VEZ)
+        // ===============================
         const pagoResult = await db.query(
             `
             INSERT INTO pagos
@@ -50,12 +62,9 @@ router.post("/", async (req, res) => {
             ]
         );
 
-        // =====================================
-        // 3️⃣ GENERAR MEMBRESÍAS DESDE VENCIMIENTO
-        // =====================================
-        const inicio = new Date(fechaVencimiento);
-        inicio.setDate(1); // evita errores de mes
-
+        // ===============================
+        // 3️⃣ GENERAR MEMBRESÍAS
+        // ===============================
         const meses = generarMeses(inicio, cantidad_meses);
 
         for (const periodo_mes of meses) {
@@ -88,4 +97,5 @@ router.post("/", async (req, res) => {
         });
     }
 });
+
 export default router;
