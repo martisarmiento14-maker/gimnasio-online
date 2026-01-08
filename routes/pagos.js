@@ -14,13 +14,15 @@ router.post("/", async (req, res) => {
         dias_por_semana
     } = req.body;
 
-    const cantidad_meses = Number(req.body.cantidad_meses);
+    const cantidad_meses = Number(req.body.cantidad_meses || 1);
 
-    if (![1, 2].includes(cantidad_meses)) {
+
+    if (isNaN(cantidad_meses) || cantidad_meses < 1) {
         return res.status(400).json({
-            error: "cantidad_meses inválida (solo 1 o 2)"
+            error: "cantidad_meses inválida"
         });
     }
+
 
     try {
         const pagoResult = await db.query(
@@ -61,6 +63,10 @@ router.post("/", async (req, res) => {
                 ]
             );
         }
+        console.log("🧪 fecha_pago:", fecha_pago);
+        console.log("🧪 cantidad_meses:", cantidad_meses);
+        console.log("🧪 meses generados:", meses);
+
 
         res.json({
             ok: true,

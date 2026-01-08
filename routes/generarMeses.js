@@ -1,16 +1,24 @@
 /**
  * Genera una lista de periodos 'YYYY-MM'
  * @param {Date | string} fechaBase
- * @param {number} cantidadMeses (1 o 2)
+ * @param {number} cantidadMeses
  * @returns {string[]}
  */
-export default function generarMeses(fechaBase, cantidadMeses) {
-    const meses = [];
+export default function generarMeses(fechaBase, cantidadMeses = 1) {
+    if (!fechaBase) {
+        throw new Error("Fecha base requerida");
+    }
+
     const fecha = new Date(fechaBase);
 
     if (isNaN(fecha.getTime())) {
         throw new Error("Fecha base inválida");
     }
+
+    // 🔒 Evita saltos de mes por timezone
+    fecha.setDate(1);
+
+    const meses = [];
 
     for (let i = 0; i < cantidadMeses; i++) {
         const year = fecha.getFullYear();
