@@ -1,3 +1,8 @@
+import express from "express";
+import db from "../database/db.js";
+import generarMeses from "./generarMeses.js";
+
+const router = express.Router();
 router.post("/", async (req, res) => {
     const {
         id_alumno,
@@ -83,3 +88,4 @@ router.post("/", async (req, res) => {
         });
     }
 });
+export default router;
