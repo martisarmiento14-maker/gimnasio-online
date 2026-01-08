@@ -1,9 +1,3 @@
-import express from "express";
-import db from "../database/db.js";
-import generarMeses from "./generarMeses.js";
-
-const router = express.Router();
-
 router.post("/", async (req, res) => {
     const {
         id_alumno,
@@ -11,26 +5,35 @@ router.post("/", async (req, res) => {
         metodo_pago,
         tipo,
         plan,
-        dias_por_semana
+        dias_por_semana,
+        cantidad_meses = 1
     } = req.body;
 
-    const cantidad_meses = Number(req.body.cantidad_meses || 1);
-
-
-    if (isNaN(cantidad_meses) || cantidad_meses < 1) {
-        return res.status(400).json({
-            error: "cantidad_meses inválida"
-        });
-    }
-
-
     try {
+
+        // =====================================
+        // 1️⃣ TRAER FECHA DE VENCIMIENTO REAL
+        // =====================================
+        const alumno = await db.query(
+            `SELECT fecha_vencimiento FROM alumnos WHERE id = $1`,
+            [id_alumno]
+        );
+
+        if (alumno.rows.length === 0) {
+            return res.status(404).json({ error: "Alumno no existe" });
+        }
+
+        const fechaVencimiento = alumno.rows[0].fecha_vencimiento;
+
+        // =====================================
+        // 2️⃣ REGISTRAR EL PAGO (UNA SOLA VEZ)
+        // =====================================
         const pagoResult = await db.query(
             `
             INSERT INTO pagos
             (id_alumno, monto, metodo_pago, fecha_pago, tipo, plan, dias_por_semana)
             VALUES ($1, $2, $3, CURRENT_DATE, $4, $5, $6)
-            RETURNING id, fecha_pago
+            RETURNING id
             `,
             [
                 id_alumno,
@@ -42,9 +45,13 @@ router.post("/", async (req, res) => {
             ]
         );
 
-        const { id: id_pago, fecha_pago } = pagoResult.rows[0];
+        // =====================================
+        // 3️⃣ GENERAR MEMBRESÍAS DESDE VENCIMIENTO
+        // =====================================
+        const inicio = new Date(fechaVencimiento);
+        inicio.setDate(1); // evita errores de mes
 
-        const meses = generarMeses(new Date(fecha_pago), cantidad_meses);
+        const meses = generarMeses(inicio, cantidad_meses);
 
         for (const periodo_mes of meses) {
             await db.query(
@@ -63,22 +70,16 @@ router.post("/", async (req, res) => {
                 ]
             );
         }
-        console.log("🧪 fecha_pago:", fecha_pago);
-        console.log("🧪 cantidad_meses:", cantidad_meses);
-        console.log("🧪 meses generados:", meses);
-
 
         res.json({
             ok: true,
-            mensaje: "Pago y membresías registradas correctamente",
-            id_pago,
             meses
         });
 
     } catch (error) {
-        console.error("❌ ERROR REAL:", error);
-        res.status(500).json({ error: "Error registrando pago" });
+        console.error("❌ ERROR PAGO:", error);
+        res.status(500).json({
+            error: "Error registrando pago"
+        });
     }
 });
-
-export default router;
