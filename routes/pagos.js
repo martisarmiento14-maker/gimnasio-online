@@ -37,9 +37,8 @@ router.post("/", async (req, res) => {
         }
 
         // 👉 MES SIGUIENTE AL VENCIMIENTO
-        const inicio = new Date(fechaVencimiento);
-        inicio.setMonth(inicio.getMonth() + 1);
-        inicio.setDate(1);
+        const inicio = fechaVencimiento.slice(0, 7); // "YYYY-MM"
+
 
         // ===============================
         // 2️⃣ REGISTRAR EL PAGO (1 VEZ)

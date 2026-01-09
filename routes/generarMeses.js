@@ -4,29 +4,25 @@
  * @param {number} cantidadMeses
  * @returns {string[]}
  */
-export default function generarMeses(fechaBase, cantidadMeses = 1) {
-    if (!fechaBase) {
-        throw new Error("Fecha base requerida");
-    }
+export default function generarMeses(baseYYYYMM, cantidadMeses = 1) {
+    const [y, m] = baseYYYYMM.split("-").map(Number);
 
-    const fecha = new Date(fechaBase);
-
-    if (isNaN(fecha.getTime())) {
-        throw new Error("Fecha base inválida");
-    }
-
-    // 🔒 Siempre el primer día del mes
-    fecha.setDate(1);
+    let year = y;
+    let month = m;
 
     const meses = [];
 
     for (let i = 0; i < cantidadMeses; i++) {
-        const year = fecha.getFullYear();
-        const month = String(fecha.getMonth() + 1).padStart(2, "0");
+        month++;
 
-        meses.push(`${year}-${month}`);
-        fecha.setMonth(fecha.getMonth() + 1);
+        if (month > 12) {
+            month = 1;
+            year++;
+        }
+
+        meses.push(`${year}-${String(month).padStart(2, "0")}`);
     }
 
     return meses;
 }
+
