@@ -57,5 +57,39 @@ router.get("/ingresos", async (req, res) => {
         });
     }
 });
+// ==========================
+// 👥 ALUMNOS DEL MES (ALTAS + RENOVACIONES)
+// ==========================
+router.get("/alumnos", async (req, res) => {
+    const { mes } = req.query;
+
+    if (!mes) {
+        return res.status(400).json({
+            error: "mes requerido (YYYY-MM)"
+        });
+    }
+
+    try {
+        const result = await db.query(
+            `
+            SELECT
+                COUNT(DISTINCT id_alumno) AS total
+            FROM pagos
+            WHERE TO_CHAR(fecha_pago, 'YYYY-MM') = $1
+            `,
+            [mes]
+        );
+
+        res.json({
+            total: Number(result.rows[0].total)
+        });
+
+    } catch (error) {
+        console.error("ERROR ALUMNOS MES:", error);
+        res.status(500).json({
+            error: "Error obteniendo alumnos del mes"
+        });
+    }
+});
 
 export default router;
