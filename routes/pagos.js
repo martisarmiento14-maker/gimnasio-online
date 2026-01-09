@@ -1,6 +1,7 @@
 import express from "express";
 import db from "../database/db.js";
-import generarMeses from "./generarMeses.js";
+import generarMesesDesdeFecha from "./generarMeses.js";
+
 
 const router = express.Router();
 
@@ -40,15 +41,20 @@ router.post("/", async (req, res) => {
 
         // 3️⃣ generar meses desde mes siguiente
         // 3️⃣ generar meses desde mes siguiente
-        const inicio = new Date(fechaVenc);
-        inicio.setDate(1);
-    
+        // 👉 fecha actual de vencimiento
+        const fechaActual = new Date(alumnoRes.rows[0].fecha_vencimiento);
+        const diaOriginal = fechaActual.getDate();
 
-        const year = inicio.getFullYear();
-        const month = String(inicio.getMonth() + 1).padStart(2, "0");
-        const baseYYYYMM = `${year}-${month}`;
+        let nuevaFecha = new Date(fechaActual);
 
-        const meses = generarMeses(baseYYYYMM, cantidad_meses);
+        // 👉 sumar meses manteniendo el día
+        nuevaFecha.setMonth(nuevaFecha.getMonth() + cantidad_meses);
+
+        // 👉 corregir meses cortos (ej: 31 → 30 / feb)
+        if (nuevaFecha.getDate() !== diaOriginal) {
+            nuevaFecha.setDate(0); // último día del mes correcto
+        }
+
 
 
         for (const periodo of meses) {
@@ -64,9 +70,6 @@ router.post("/", async (req, res) => {
         }
 
         // 4️⃣ actualizar fecha vencimiento al ÚLTIMO MES
-        const [y, m] = meses[meses.length - 1].split("-").map(Number);
-        const nuevaFecha = new Date(y, m, 0);
-
         await db.query(
             `UPDATE alumnos SET fecha_vencimiento = $1 WHERE id = $2`,
             [nuevaFecha, id_alumno]

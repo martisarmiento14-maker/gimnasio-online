@@ -1,26 +1,20 @@
 /**
  * Genera una lista de periodos 'YYYY-MM'
+ * a partir de una fecha real (mantiene el día)
  * @param {Date | string} fechaBase
  * @param {number} cantidadMeses
  * @returns {string[]}
  */
-export default function generarMeses(baseYYYYMM, cantidadMeses = 1) {
-    const [y, m] = baseYYYYMM.split("-").map(Number);
-
-    let year = y;
-    let month = m;
-
+export default function generarMesesDesdeFecha(fechaBase, cantidadMeses = 1) {
     const meses = [];
+    let fecha = new Date(fechaBase);
 
     for (let i = 0; i < cantidadMeses; i++) {
-        month++;
+        fecha.setMonth(fecha.getMonth() + 1);
 
-        if (month > 12) {
-            month = 1;
-            year++;
-        }
-
-        meses.push(`${year}-${String(month).padStart(2, "0")}`);
+        meses.push(
+            `${fecha.getFullYear()}-${String(fecha.getMonth() + 1).padStart(2, "0")}`
+        );
     }
 
     return meses;
