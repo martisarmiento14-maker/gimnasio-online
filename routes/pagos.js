@@ -39,11 +39,16 @@ router.post("/", async (req, res) => {
         );
 
         // 3️⃣ generar meses desde mes siguiente
+        // 3️⃣ generar meses desde mes siguiente
         const inicio = new Date(fechaVenc);
         inicio.setMonth(inicio.getMonth() + 1);
-        inicio.setDate(1);
 
-        const meses = generarMeses(inicio, cantidad_meses);
+        const year = inicio.getFullYear();
+        const month = String(inicio.getMonth() + 1).padStart(2, "0");
+        const baseYYYYMM = `${year}-${month}`;
+
+        const meses = generarMeses(baseYYYYMM, cantidad_meses);
+
 
         for (const periodo of meses) {
             await db.query(
