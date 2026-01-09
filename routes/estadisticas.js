@@ -4,7 +4,7 @@ import db from "../database/db.js";
 const router = express.Router();
 
 // ==========================
-// 💰 INGRESOS DEL MES
+// 💰 INGRESOS DEL MES (PAGOS)
 // ==========================
 router.get("/ingresos", async (req, res) => {
     const { mes } = req.query;
@@ -57,10 +57,45 @@ router.get("/ingresos", async (req, res) => {
         });
     }
 });
+
 // ==========================
-// 👥 ALUMNOS DEL MES (ALTAS + RENOVACIONES)
+// 👥 ALUMNOS ACTIVOS DEL MES
 // ==========================
-router.get("/alumnos", async (req, res) => {
+router.get("/alumnos-activos", async (req, res) => {
+    const { mes } = req.query;
+
+    if (!mes) {
+        return res.status(400).json({
+            error: "mes requerido (YYYY-MM)"
+        });
+    }
+
+    try {
+        const result = await db.query(
+            `
+            SELECT COUNT(DISTINCT id_alumno) AS total
+            FROM membresias
+            WHERE periodo_mes = $1
+            `,
+            [mes]
+        );
+
+        res.json({
+            total: Number(result.rows[0].total)
+        });
+
+    } catch (error) {
+        console.error("ERROR ALUMNOS ACTIVOS:", error);
+        res.status(500).json({
+            error: "Error obteniendo alumnos activos"
+        });
+    }
+});
+
+// ==========================
+// 🔁 ALTAS VS RENOVACIONES
+// ==========================
+router.get("/altas-vs-renovaciones", async (req, res) => {
     const { mes } = req.query;
 
     if (!mes) {
@@ -73,21 +108,36 @@ router.get("/alumnos", async (req, res) => {
         const result = await db.query(
             `
             SELECT
+                tipo,
                 COUNT(DISTINCT id_alumno) AS total
-            FROM pagos
-            WHERE TO_CHAR(fecha_pago, 'YYYY-MM') = $1
+            FROM membresias
+            WHERE periodo_mes = $1
+            GROUP BY tipo
             `,
             [mes]
         );
 
-        res.json({
-            total: Number(result.rows[0].total)
+        const respuesta = {
+            altas: 0,
+            renovaciones: 0
+        };
+
+        result.rows.forEach(r => {
+            if (r.tipo === "alta") {
+                respuesta.altas = Number(r.total);
+            }
+
+            if (r.tipo === "renovacion") {
+                respuesta.renovaciones = Number(r.total);
+            }
         });
 
+        res.json(respuesta);
+
     } catch (error) {
-        console.error("ERROR ALUMNOS MES:", error);
+        console.error("ERROR ALTAS VS RENOVACIONES:", error);
         res.status(500).json({
-            error: "Error obteniendo alumnos del mes"
+            error: "Error obteniendo altas vs renovaciones"
         });
     }
 });
