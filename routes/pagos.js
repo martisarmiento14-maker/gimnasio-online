@@ -42,20 +42,21 @@ router.post("/", async (req, res) => {
         // 3️⃣ generar meses desde mes siguiente
         // 3️⃣ generar meses desde mes siguiente
         // 👉 fecha actual de vencimiento
+        // 3️⃣ generar meses y nueva fecha de vencimiento
         const fechaActual = new Date(alumnoRes.rows[0].fecha_vencimiento);
         const diaOriginal = fechaActual.getDate();
 
-        let nuevaFecha = new Date(fechaActual);
+        // 👉 generar periodos YYYY-MM
+        const meses = generarMesesDesdeFecha(fechaActual, cantidad_meses);
 
-        // 👉 sumar meses manteniendo el día
+        // 👉 calcular nueva fecha de vencimiento
+        let nuevaFecha = new Date(fechaActual);
         nuevaFecha.setMonth(nuevaFecha.getMonth() + cantidad_meses);
 
-        // 👉 corregir meses cortos (ej: 31 → 30 / feb)
+        // 👉 corregir meses cortos (31 → 30 / feb)
         if (nuevaFecha.getDate() !== diaOriginal) {
-            nuevaFecha.setDate(0); // último día del mes correcto
+            nuevaFecha.setDate(0);
         }
-
-
 
         for (const periodo of meses) {
             await db.query(
