@@ -16,55 +16,36 @@ router.post("/", async (req, res) => {
     } = req.body;
 
     try {
-        // ===============================
-        // 1️⃣ TRAER FECHA DE VENCIMIENTO
-        // ===============================
+        // 1️⃣ fecha vencimiento actual
         const alumnoRes = await db.query(
             `SELECT fecha_vencimiento FROM alumnos WHERE id = $1`,
             [id_alumno]
         );
 
-        if (alumnoRes.rows.length === 0) {
+        if (!alumnoRes.rows.length) {
             return res.status(404).json({ error: "Alumno no existe" });
         }
 
-        const fechaVencimiento = alumnoRes.rows[0].fecha_vencimiento;
+        const fechaVenc = new Date(alumnoRes.rows[0].fecha_vencimiento);
 
-        if (!fechaVencimiento) {
-            return res.status(400).json({
-                error: "Alumno sin fecha de vencimiento"
-            });
-        }
-
-        // 👉 MES SIGUIENTE AL VENCIMIENTO
-        const inicio = fechaVencimiento.slice(0, 7); // "YYYY-MM"
-
-
-        // ===============================
-        // 2️⃣ REGISTRAR EL PAGO (1 VEZ)
-        // ===============================
+        // 2️⃣ registrar pago (UNA VEZ)
         await db.query(
             `
             INSERT INTO pagos
             (id_alumno, monto, metodo_pago, fecha_pago, tipo, plan, dias_por_semana)
             VALUES ($1, $2, $3, CURRENT_DATE, $4, $5, $6)
             `,
-            [
-                id_alumno,
-                monto,
-                metodo_pago,
-                tipo,
-                plan || null,
-                dias_por_semana || null
-            ]
+            [id_alumno, monto, metodo_pago, tipo, plan, dias_por_semana]
         );
 
-        // ===============================
-        // 3️⃣ GENERAR MEMBRESÍAS
-        // ===============================
+        // 3️⃣ generar meses desde mes siguiente
+        const inicio = new Date(fechaVenc);
+        inicio.setMonth(inicio.getMonth() + 1);
+        inicio.setDate(1);
+
         const meses = generarMeses(inicio, cantidad_meses);
 
-        for (const periodo_mes of meses) {
+        for (const periodo of meses) {
             await db.query(
                 `
                 INSERT INTO membresias
@@ -72,28 +53,25 @@ router.post("/", async (req, res) => {
                 VALUES ($1, $2, $3, $4, $5)
                 ON CONFLICT (id_alumno, periodo_mes) DO NOTHING
                 `,
-                [
-                    id_alumno,
-                    periodo_mes,
-                    tipo,
-                    plan || null,
-                    dias_por_semana || null
-                ]
+                [id_alumno, periodo, tipo, plan, dias_por_semana]
             );
         }
 
-        res.json({
-            ok: true,
-            meses
-        });
+        // 4️⃣ actualizar fecha vencimiento al ÚLTIMO MES
+        const [y, m] = meses[meses.length - 1].split("-").map(Number);
+        const nuevaFecha = new Date(y, m, 0);
 
-    } catch (error) {
-        console.error("❌ ERROR PAGO:", error);
-        res.status(500).json({
-            error: "Error registrando pago"
-        });
+        await db.query(
+            `UPDATE alumnos SET fecha_vencimiento = $1 WHERE id = $2`,
+            [nuevaFecha, id_alumno]
+        );
+
+        res.json({ ok: true, meses });
+
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: "Error registrando pago" });
     }
 });
 
 export default router;
-
